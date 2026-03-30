@@ -10,23 +10,14 @@ import 'knx_types.dart';
 import 'ets_project.dart';
 import 'knx_connection.dart' as knx;
 
-void main(List<String> args) {
-  String? projectPath;
-  for (var i = 0; i < args.length; i++) {
-    if ((args[i] == '-project' || args[i] == '--project') &&
-        i + 1 < args.length) {
-      projectPath = args[i + 1];
-      break;
-    }
-  }
-  runApp(MyApp(projectPath: projectPath));
+void main() {
+  runApp(const MyApp());
 }
 
 final GlobalKey<_KnxMonitorPageState> _pageKey = GlobalKey();
 
 class MyApp extends StatelessWidget {
-  final String? projectPath;
-  const MyApp({super.key, this.projectPath});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -103,15 +94,14 @@ class MyApp extends StatelessWidget {
             brightness: Brightness.dark,
           ),
         ),
-        home: KnxMonitorPage(key: _pageKey, projectPath: projectPath),
+        home: KnxMonitorPage(key: _pageKey),
       ),
     );
   }
 }
 
 class KnxMonitorPage extends StatefulWidget {
-  final String? projectPath;
-  const KnxMonitorPage({super.key, this.projectPath});
+  const KnxMonitorPage({super.key});
 
   @override
   State<KnxMonitorPage> createState() => _KnxMonitorPageState();
@@ -207,11 +197,6 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   }
 
   Future<void> _startup() async {
-    if (widget.projectPath != null) {
-      await _loadProjectFile(widget.projectPath!);
-    } else {
-      await _pickProject();
-    }
     _connection.connect();
   }
 
@@ -225,6 +210,16 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       _connection.project = project;
       debugPrint('[KNX] Project: ${project.devices.length} devices, '
           '${project.groupAddresses.length} GAs');
+      // Retranslate existing events with new project data
+      setState(() {
+        for (final e in _events) {
+          e.deviceName = project.lookupDevice(e.source);
+          e.groupName = project.lookupGA(e.destination);
+        }
+        if (_searchQuery.isNotEmpty) {
+          _filteredIndices = _computeFiltered();
+        }
+      });
     } catch (e, st) {
       debugPrint('[KNX ERROR] Project load: $e\n$st');
     }

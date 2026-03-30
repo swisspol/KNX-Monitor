@@ -39,9 +39,9 @@ class KnxEvent {
   final DateTime time;
   final String direction;
   final String source;
-  final String deviceName;
+  String deviceName;
   final String destination;
-  final String groupName;
+  String groupName;
   final String apci;
   final String dpt;
   final String raw;
