@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'knx_types.dart';
@@ -192,8 +193,116 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
         });
       }
     });
+    _connection.onMultipleBridges = _pickBridge;
     _focusNode.requestFocus();
     WidgetsBinding.instance.addPostFrameCallback((_) => _startup());
+  }
+
+  Future<KnxBridge?> _pickBridge(List<KnxBridge> bridges) async {
+    final cs = Theme.of(context).colorScheme;
+    return showDialog<KnxBridge>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: cs.primary,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.router, color: cs.onPrimary, size: 20),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Select KNX/IP Bridge',
+                        style: TextStyle(
+                          color: cs.onPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final b in bridges)
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            hoverColor: cs.primary.withAlpha(30),
+                            splashColor: cs.primary.withAlpha(50),
+                            highlightColor: cs.primary.withAlpha(40),
+                            onTap: () => Navigator.of(ctx).pop(b),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF9E9E9E),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      b.ip,
+                                      style: const TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      b.name,
+                                      style: TextStyle(fontSize: 13, color: _cText),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 12, bottom: 10),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.of(ctx).pop(null);
+                        exit(0);
+                      },
+                      child: const Text('Quit'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _startup() async {
@@ -225,17 +334,22 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
     }
   }
 
+  static const _prefLastProjectDir = 'lastProjectDir';
+
   Future<void> _pickProject() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastDir = prefs.getString(_prefLastProjectDir);
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['knxproj'],
-        dialogTitle: 'Open ETS Project (optional)',
+        dialogTitle: 'Open ETS Project\u2026',
+        initialDirectory: lastDir,
       );
       if (result != null && result.files.single.path != null) {
-        await _loadProjectFile(result.files.single.path!);
-      } else {
-        // No project, continue without it
+        final path = result.files.single.path!;
+        await prefs.setString(_prefLastProjectDir, File(path).parent.path);
+        await _loadProjectFile(path);
       }
     } catch (e) {
       debugPrint('[KNX ERROR] Project pick: $e');

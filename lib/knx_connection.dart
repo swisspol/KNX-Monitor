@@ -39,6 +39,10 @@ class KnxConnection {
     _statusController.add(msg);
   }
 
+  /// Callback to let UI pick a bridge when multiple are found.
+  /// If null, the first bridge is used automatically.
+  Future<KnxBridge?> Function(List<KnxBridge>)? onMultipleBridges;
+
   Future<void> connect({String? host}) async {
     try {
       if (host != null && host.isNotEmpty) {
@@ -52,9 +56,20 @@ class KnxConnection {
           _status('No KNX bridge found');
           return;
         }
-        _bridgeIp = bridges.first.ip;
-        final label =
-            bridges.first.name.isNotEmpty ? ' (${bridges.first.name})' : '';
+        KnxBridge selected;
+        if (bridges.length > 1 && onMultipleBridges != null) {
+          final picked = await onMultipleBridges!(bridges);
+          if (picked == null) {
+            _setState(ConnectionState.disconnected);
+            _status('Connection cancelled');
+            return;
+          }
+          selected = picked;
+        } else {
+          selected = bridges.first;
+        }
+        _bridgeIp = selected.ip;
+        final label = selected.name.isNotEmpty ? ' (${selected.name})' : '';
         _status('Found bridge: $_bridgeIp$label');
       }
 
