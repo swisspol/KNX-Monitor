@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'knx_types.dart';
@@ -32,23 +33,57 @@ class MyApp extends StatelessWidget {
     return PlatformMenuBar(
       menus: [
         PlatformMenu(label: 'KNX Monitor', menus: [
-          PlatformMenuItem(
-            label: 'Quit KNX Monitor',
-            shortcut: const SingleActivator(LogicalKeyboardKey.keyQ, meta: true),
-            onSelected: () => exit(0),
-          ),
+          PlatformMenuItemGroup(members: [
+            PlatformMenuItem(
+              label: 'About KNX Monitor',
+              onSelected: () async {
+                final ctx = _pageKey.currentContext;
+                if (ctx == null) return;
+                final info = await PackageInfo.fromPlatform();
+                if (!ctx.mounted) return;
+                showAboutDialog(
+                  context: ctx,
+                  applicationName: info.appName,
+                  applicationVersion: info.version,
+                  applicationLegalese: '\u00a9 2026 Pierre-Olivier Latour',
+                );
+              },
+            ),
+          ]),
+          PlatformMenuItemGroup(members: [
+            const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.hide),
+            const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.hideOtherApplications),
+            const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.showAllApplications),
+          ]),
+          PlatformMenuItemGroup(members: [
+            const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.quit),
+          ]),
         ]),
         PlatformMenu(label: 'Edit', menus: [
-          PlatformMenuItem(
-            label: 'Copy',
-            shortcut: const SingleActivator(LogicalKeyboardKey.keyC, meta: true),
-            onSelected: () => _pageKey.currentState?._copySelection(),
-          ),
-          PlatformMenuItem(
-            label: 'Select All',
-            shortcut: const SingleActivator(LogicalKeyboardKey.keyA, meta: true),
-            onSelected: () => _pageKey.currentState?._selectAll(),
-          ),
+          PlatformMenuItemGroup(members: [
+            PlatformMenuItem(
+              label: 'Copy',
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyC, meta: true),
+              onSelected: () => _pageKey.currentState?._copySelection(),
+            ),
+            PlatformMenuItem(
+              label: 'Select All',
+              shortcut: const SingleActivator(LogicalKeyboardKey.keyA, meta: true),
+              onSelected: () => _pageKey.currentState?._selectAll(),
+            ),
+          ]),
+        ]),
+        PlatformMenu(label: 'Window', menus: [
+          PlatformMenuItemGroup(members: [
+            const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.minimizeWindow),
+            const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.zoomWindow),
+          ]),
+          PlatformMenuItemGroup(members: [
+            const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.toggleFullScreen),
+          ]),
+          PlatformMenuItemGroup(members: [
+            const PlatformProvidedMenuItem(type: PlatformProvidedMenuItemType.arrangeWindowsInFront),
+          ]),
         ]),
       ],
       child: MaterialApp(
@@ -405,11 +440,6 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
     }
   }
 
-  Color _valueColor(String value, ColorScheme cs) {
-    if (value == 'ON') return _cGreen;
-    if (value == 'OFF') return _cRed;
-    return _cText;
-  }
 
   /// Semantic color for DPT based on its major number.
   static const _dptColors = <int, Color>{
@@ -550,7 +580,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
               ),
             IconButton(
               icon: const Icon(Icons.folder_open, size: 18),
-              tooltip: 'Load ETS Project',
+              tooltip: 'Load ETS Project\u2026',
               onPressed: _pickProject,
               visualDensity: VisualDensity.compact,
             ),
