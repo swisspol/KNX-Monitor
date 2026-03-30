@@ -28,18 +28,7 @@ class MyApp extends StatelessWidget {
           PlatformMenuItemGroup(members: [
             PlatformMenuItem(
               label: 'About KNX Monitor',
-              onSelected: () async {
-                final ctx = _pageKey.currentContext;
-                if (ctx == null) return;
-                final info = await PackageInfo.fromPlatform();
-                if (!ctx.mounted) return;
-                showAboutDialog(
-                  context: ctx,
-                  applicationName: info.appName,
-                  applicationVersion: info.version,
-                  applicationLegalese: '\u00a9 2026 Pierre-Olivier Latour',
-                );
-              },
+              onSelected: () => _pageKey.currentState?._showAbout(),
             ),
           ]),
           PlatformMenuItemGroup(members: [
@@ -302,6 +291,32 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _showAbout() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    // Read NSHumanReadableCopyright from Info.plist via the bundle
+    String copyright = '';
+    try {
+      final plistPath = '${File(Platform.resolvedExecutable).parent.parent.path}/Info.plist';
+      final plist = await File(plistPath).readAsString();
+      final match = RegExp(r'<key>NSHumanReadableCopyright</key>\s*<string>(.*?)</string>')
+          .firstMatch(plist);
+      if (match != null) copyright = match.group(1)!;
+    } catch (_) {}
+    if (!mounted) return;
+    showAboutDialog(
+      context: context,
+      applicationName: info.appName,
+      applicationVersion: info.version,
+      applicationLegalese: copyright,
+      applicationIcon: Image.asset(
+        'assets/app_icon.png',
+        width: 64,
+        height: 64,
+      ),
     );
   }
 
@@ -621,10 +636,21 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
           titleSpacing: 12,
           title: Row(
             children: [
-              const Icon(Icons.settings_input_component, size: 18),
-              const SizedBox(width: 8),
-              const Text('KNX Monitor',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              GestureDetector(
+                onTap: _showAbout,
+                child: const MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.device_hub, size: 18),
+                      SizedBox(width: 8),
+                      Text('KNX Monitor',
+                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(width: 16),
               _statusIcon(),
               const SizedBox(width: 6),
@@ -680,41 +706,42 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
             ],
           ),
           actions: [
-            if (_connState == knx.ConnectionState.connected)
-              IconButton(
-                icon: Icon(_paused ? Icons.play_arrow : Icons.pause, size: 18),
-                tooltip: _paused ? 'Resume' : 'Pause',
-                onPressed: () => setState(() => _paused = !_paused),
-                visualDensity: VisualDensity.compact,
-              ),
+            IconButton(
+              icon: Icon(_paused ? Icons.play_arrow : Icons.pause, size: 18),
+              tooltip: _paused ? 'Resume' : 'Pause',
+              onPressed: _connState == knx.ConnectionState.connected
+                  ? () => setState(() => _paused = !_paused)
+                  : null,
+              visualDensity: VisualDensity.compact,
+            ),
             IconButton(
               icon: const Icon(Icons.folder_open, size: 18),
               tooltip: 'Load ETS Project\u2026',
               onPressed: _pickProject,
               visualDensity: VisualDensity.compact,
             ),
-            if (_connState == knx.ConnectionState.connected ||
-                _connState == knx.ConnectionState.error ||
-                _connState == knx.ConnectionState.disconnected)
-              IconButton(
-                icon: Icon(
-                    _connState == knx.ConnectionState.connected
-                        ? Icons.link_off
-                        : Icons.link,
-                    size: 18),
-                tooltip: _connState == knx.ConnectionState.connected
-                    ? 'Disconnect'
-                    : 'Reconnect',
-                onPressed: () {
-                  if (_connState == knx.ConnectionState.connected) {
-                    _connection.disconnect();
-                  } else {
-                    setState(() => _paused = false);
-                    _connection.connect();
-                  }
-                },
-                visualDensity: VisualDensity.compact,
-              ),
+            IconButton(
+              icon: Icon(
+                  _connState == knx.ConnectionState.connected
+                      ? Icons.link_off
+                      : Icons.link,
+                  size: 18),
+              tooltip: _connState == knx.ConnectionState.connected
+                  ? 'Disconnect'
+                  : 'Connect',
+              onPressed: _connState == knx.ConnectionState.searching ||
+                      _connState == knx.ConnectionState.connecting
+                  ? null
+                  : () {
+                      if (_connState == knx.ConnectionState.connected) {
+                        _connection.disconnect();
+                      } else {
+                        setState(() => _paused = false);
+                        _connection.connect();
+                      }
+                    },
+              visualDensity: VisualDensity.compact,
+            ),
             IconButton(
               icon: const Icon(Icons.delete_sweep, size: 18),
               tooltip: 'Clear',
