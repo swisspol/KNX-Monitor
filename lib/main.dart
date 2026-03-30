@@ -104,7 +104,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   final Set<int> _selectedIndices = {};
   int? _anchorIndex;
 
-  String _status = 'Starting...';
+  String _status = 'Waiting...';
   knx.ConnectionState _connState = knx.ConnectionState.disconnected;
   bool _paused = false;
   int _messageNumber = 0;
@@ -190,13 +190,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       _connection.project = project;
       debugPrint('[KNX] Project: ${project.devices.length} devices, '
           '${project.groupAddresses.length} GAs');
-      setState(() {
-        _status = 'Project: ${project.devices.length} devices, '
-            '${project.groupAddresses.length} GAs';
-      });
     } catch (e, st) {
       debugPrint('[KNX ERROR] Project load: $e\n$st');
-      setState(() => _status = 'Project error: $e');
     }
   }
 
@@ -210,10 +205,10 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       if (result != null && result.files.single.path != null) {
         await _loadProjectFile(result.files.single.path!);
       } else {
-        setState(() => _status = 'No project loaded');
+        // No project, continue without it
       }
     } catch (e) {
-      setState(() => _status = 'Project error: $e');
+      debugPrint('[KNX ERROR] Project pick: $e');
     }
   }
 
@@ -463,14 +458,11 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
         return Icon(Icons.circle, size: 10, color: Colors.green.shade400);
       case knx.ConnectionState.searching:
       case knx.ConnectionState.connecting:
-        return const SizedBox(
-            width: 10,
-            height: 10,
-            child: CircularProgressIndicator(strokeWidth: 2));
+        return Icon(Icons.circle, size: 10, color: Colors.orange.shade400);
       case knx.ConnectionState.error:
         return Icon(Icons.circle, size: 10, color: Colors.red.shade400);
       case knx.ConnectionState.disconnected:
-        return Icon(Icons.circle, size: 10, color: Colors.grey.shade600);
+        return Icon(Icons.circle, size: 10, color: Colors.red.shade400);
     }
   }
 
@@ -504,7 +496,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
               ),
               const Spacer(),
               SizedBox(
-                width: 400,
+                width: 550,
                 height: 28,
               child: TextField(
                 controller: _searchController,
@@ -545,6 +537,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                 ),
               ),
             ),
+              const Spacer(),
             ],
           ),
           actions: [
@@ -704,7 +697,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
     } else if (index.isEven) {
       bg = Colors.transparent;
     } else {
-      bg = cs.surfaceContainerHighest.withAlpha(50);
+      bg = cs.surfaceContainerHighest.withAlpha(100);
     }
 
     const ts = TextStyle(
@@ -741,8 +734,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
             _dCell(e.raw, _colRaw,
                 ts.copyWith(color: cs.onSurfaceVariant),
                 Alignment.centerRight),
-            _dCell(e.value, _colValue,
-                ts.copyWith(color: _valueColor(e.value, cs))),
+            _dCell(e.value, _colValue, ts.copyWith(color: _cText)),
           ],
         ),
       ),
