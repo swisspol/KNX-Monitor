@@ -300,6 +300,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
     );
   }
 
+  static const _gitSha = String.fromEnvironment('GIT_SHA');
+
   Future<void> _showAbout() async {
     final info = await PackageInfo.fromPlatform();
     if (!mounted) return;
@@ -313,10 +315,13 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       if (match != null) copyright = match.group(1)!;
     } catch (_) {}
     if (!mounted) return;
+    final version = _gitSha.isNotEmpty
+        ? '${info.version} (${info.buildNumber}) · ${_gitSha.substring(0, 7)}'
+        : '${info.version} (${info.buildNumber})';
     showAboutDialog(
       context: context,
       applicationName: info.appName,
-      applicationVersion: info.version,
+      applicationVersion: version,
       applicationLegalese: copyright,
       applicationIcon: Image.asset(
         'assets/app_icon.png',
