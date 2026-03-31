@@ -136,7 +136,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   final Set<int> _selectedIndices = {};
   int? _anchorIndex;
 
-  String _status = 'Waiting...';
+  String _status = 'Disconnected';
   knx.ConnectionState _connState = knx.ConnectionState.disconnected;
   bool _paused = false;
   int _messageNumber = 0;
@@ -243,6 +243,13 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
         builder: (ctx) {
           return StatefulBuilder(
             builder: (ctx, setDialogState) {
+              // Rebuild dialog when host field changes (for Connect button state)
+              void onHostChanged() {
+                if (ctx.mounted) setDialogState(() {});
+              }
+              hostController.removeListener(onHostChanged);
+              hostController.addListener(onHostChanged);
+
               if (discovering) {
                 Future.delayed(const Duration(milliseconds: 300), () {
                   if (ctx.mounted) setDialogState(() {});
@@ -346,7 +353,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                       ),
                       if (!discovering && bridges.isNotEmpty)
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+                          padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -359,11 +366,6 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                                     splashColor: cs.primary.withAlpha(50),
                                     highlightColor: cs.primary.withAlpha(40),
                                     onTap: () {
-                                      hostController.text = b.ip;
-                                      portController.text = '';
-                                      setDialogState(() {});
-                                    },
-                                    onDoubleTap: () {
                                       Navigator.of(ctx).pop((b.ip, knxPort));
                                     },
                                     child: Padding(
@@ -409,7 +411,9 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                             ),
                             const SizedBox(width: 8),
                             FilledButton(
-                              onPressed: () => doConnect(ctx),
+                              onPressed: hostController.text.trim().isEmpty
+                                  ? null
+                                  : () => doConnect(ctx),
                               child: const Text('Connect'),
                             ),
                           ],
@@ -793,7 +797,6 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
     switch (_connState) {
       case knx.ConnectionState.connected:
         return Icon(Icons.circle, size: 10, color: Colors.green.shade400);
-      case knx.ConnectionState.searching:
       case knx.ConnectionState.connecting:
         return Icon(Icons.circle, size: 10, color: Colors.orange.shade400);
       case knx.ConnectionState.error:
@@ -912,8 +915,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
               tooltip: _connState == knx.ConnectionState.connected
                   ? 'Disconnect'
                   : 'Connect\u2026',
-              onPressed: _connState == knx.ConnectionState.searching ||
-                      _connState == knx.ConnectionState.connecting
+              onPressed: _connState == knx.ConnectionState.connecting
                   ? null
                   : () {
                       if (_connState == knx.ConnectionState.connected) {
@@ -959,7 +961,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                         _events.isEmpty
                             ? (_connState == knx.ConnectionState.connected
                                 ? 'Waiting for messages\u2026'
-                                : 'No connection')
+                                : 'No KNX/IP Bridge Connected')
                             : 'No matching events',
                         style: TextStyle(
                             color: cs.onSurfaceVariant, fontSize: 13),

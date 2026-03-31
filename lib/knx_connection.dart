@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'knx_types.dart';
 import 'ets_project.dart';
 
-enum ConnectionState { disconnected, searching, connecting, connected, error }
+enum ConnectionState { disconnected, connecting, connected, error }
 
 class KnxConnection {
   RawDatagramSocket? _socket;
@@ -45,7 +45,7 @@ class KnxConnection {
       _bridgePort = port;
 
       _setState(ConnectionState.connecting);
-      _status('Connecting to $host:$_bridgePort...');
+      _status('Connecting\u2026');
 
       // Resolve hostname to IP if needed
       try {
@@ -88,7 +88,7 @@ class KnxConnection {
       await completer.future;
 
       _setState(ConnectionState.connected);
-      _status('Connected (channel $_channelId)');
+      _status('Connected');
 
       _heartbeatTimer = Timer.periodic(const Duration(seconds: 50), (_) {
         _sendHeartbeat();
@@ -96,7 +96,7 @@ class KnxConnection {
     } catch (e, st) {
       debugPrint('[KNX ERROR] $e\n$st');
       _setState(ConnectionState.error);
-      _status('Error: $e');
+      _status('Connection Failure');
     }
   }
 
@@ -133,14 +133,14 @@ class KnxConnection {
       case svcConnStateResp:
         if (data.length > 7 && data[7] != 0) {
           debugPrint('[KNX] Heartbeat error: 0x${data[7].toRadixString(16)}');
-          _status('Connection state error: 0x${data[7].toRadixString(16)}');
+          debugPrint('[KNX] Connection state error: 0x${data[7].toRadixString(16)}');
         } else {
           debugPrint('[KNX] Heartbeat OK');
         }
         break;
 
       case svcDisconnectReq:
-        _status('Bridge requested disconnect');
+        debugPrint('[KNX] Bridge requested disconnect');
         final pkt = <int>[];
         pkt.addAll(knxHeader(svcDisconnectResp, 10));
         pkt.addAll([_channelId, 0x00, 0x00, 0x00]);
