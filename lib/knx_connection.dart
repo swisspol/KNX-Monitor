@@ -14,6 +14,7 @@ class KnxConnection {
   EtsProject? project;
 
   String _bridgeIp = '';
+  int _bridgePort = knxPort;
   List<int> _localIp = [];
   int _localPort = 0;
 
@@ -39,42 +40,23 @@ class KnxConnection {
     _statusController.add(msg);
   }
 
-  /// Callback to let UI pick a bridge when multiple are found.
-  /// If null, the first bridge is used automatically.
-  Future<KnxBridge?> Function(List<KnxBridge>)? onMultipleBridges;
-
-  Future<void> connect({String? host}) async {
+  Future<void> connect(String host, {int port = knxPort}) async {
     try {
-      if (host != null && host.isNotEmpty) {
-        _bridgeIp = host;
-      } else {
-        _setState(ConnectionState.searching);
-        _status('Searching for KNX bridges...');
-        final bridges = await discoverBridges();
-        if (bridges.isEmpty) {
-          _setState(ConnectionState.error);
-          _status('No KNX bridge found');
-          return;
-        }
-        KnxBridge selected;
-        if (bridges.length > 1 && onMultipleBridges != null) {
-          final picked = await onMultipleBridges!(bridges);
-          if (picked == null) {
-            _setState(ConnectionState.disconnected);
-            _status('Connection cancelled');
-            return;
-          }
-          selected = picked;
-        } else {
-          selected = bridges.first;
-        }
-        _bridgeIp = selected.ip;
-        final label = selected.name.isNotEmpty ? ' (${selected.name})' : '';
-        _status('Found bridge: $_bridgeIp$label');
-      }
+      _bridgePort = port;
 
       _setState(ConnectionState.connecting);
-      _status('Connecting to $_bridgeIp:$knxPort...');
+      _status('Connecting to $host:$_bridgePort...');
+
+      // Resolve hostname to IP if needed
+      try {
+        final addresses = await InternetAddress.lookup(host);
+        _bridgeIp = addresses.first.address;
+        if (_bridgeIp != host) {
+          debugPrint('[KNX] Resolved $host to $_bridgeIp');
+        }
+      } catch (e) {
+        throw Exception('Cannot resolve hostname: $host');
+      }
 
       _localIp = await _findLocalIp(_bridgeIp);
       debugPrint('[KNX] Local IP: ${_localIp.join('.')}');
@@ -85,7 +67,7 @@ class KnxConnection {
 
       final connectPkt = _buildConnectRequest(_localIp, _localPort);
       debugPrint('[KNX] Sending CONNECT_REQUEST (HPAI ${_localIp.join('.')}:$_localPort)');
-      _socket!.send(connectPkt, InternetAddress(_bridgeIp), knxPort);
+      _socket!.send(connectPkt, InternetAddress(_bridgeIp), _bridgePort);
 
       final completer = Completer<bool>();
       _socketSub = _socket!.listen((event) {
@@ -163,7 +145,7 @@ class KnxConnection {
         pkt.addAll(knxHeader(svcDisconnectResp, 10));
         pkt.addAll([_channelId, 0x00, 0x00, 0x00]);
         _socket?.send(
-            Uint8List.fromList(pkt), InternetAddress(_bridgeIp), knxPort);
+            Uint8List.fromList(pkt), InternetAddress(_bridgeIp), _bridgePort);
         _setState(ConnectionState.disconnected);
         break;
     }
@@ -174,16 +156,20 @@ class KnxConnection {
         await NetworkInterface.list(type: InternetAddressType.IPv4);
     debugPrint('[KNX] Interfaces: ${interfaces.map((i) => '${i.name}=${i.addresses.map((a) => a.address).join(',')}').join('; ')}');
 
-    final bridgeParts = bridgeIp.split('.').map(int.parse).toList();
-    for (final iface in interfaces) {
-      for (final addr in iface.addresses) {
-        if (addr.isLoopback) continue;
-        final parts = addr.address.split('.').map(int.parse).toList();
-        if (parts[0] == bridgeParts[0] &&
-            parts[1] == bridgeParts[1] &&
-            parts[2] == bridgeParts[2]) {
-          debugPrint('[KNX] Matched ${addr.address} on ${iface.name} (same /24)');
-          return parts;
+    // Try /24 subnet match if bridge address is an IP
+    final bridgeParts = bridgeIp.split('.');
+    if (bridgeParts.length == 4) {
+      final bp = bridgeParts.map((s) => int.tryParse(s)).toList();
+      if (bp.every((v) => v != null)) {
+        for (final iface in interfaces) {
+          for (final addr in iface.addresses) {
+            if (addr.isLoopback) continue;
+            final parts = addr.address.split('.').map(int.parse).toList();
+            if (parts[0] == bp[0] && parts[1] == bp[1] && parts[2] == bp[2]) {
+              debugPrint('[KNX] Matched ${addr.address} on ${iface.name} (same /24)');
+              return parts;
+            }
+          }
         }
       }
     }
@@ -214,7 +200,7 @@ class KnxConnection {
     pkt.addAll([_channelId, 0x00]);
     pkt.addAll(hpai(_localIp, _localPort));
     _socket?.send(
-        Uint8List.fromList(pkt), InternetAddress(_bridgeIp), knxPort);
+        Uint8List.fromList(pkt), InternetAddress(_bridgeIp), _bridgePort);
   }
 
   void _sendTunnelAck(int seq) {
@@ -222,7 +208,7 @@ class KnxConnection {
     pkt.addAll(knxHeader(svcTunnelAck, 10));
     pkt.addAll([0x04, _channelId, seq, 0x00]);
     _socket?.send(
-        Uint8List.fromList(pkt), InternetAddress(_bridgeIp), knxPort);
+        Uint8List.fromList(pkt), InternetAddress(_bridgeIp), _bridgePort);
   }
 
   void _parseCEMI(List<int> cemi) {

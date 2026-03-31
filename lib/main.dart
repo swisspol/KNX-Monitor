@@ -103,6 +103,17 @@ class KnxMonitorPage extends StatefulWidget {
   State<KnxMonitorPage> createState() => _KnxMonitorPageState();
 }
 
+class _PortRangeFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) return newValue;
+    final port = int.tryParse(newValue.text);
+    if (port == null || port > 65535) return oldValue;
+    return newValue;
+  }
+}
+
 /// Strip diacritics for search matching.
 String _normalize(String s) {
   const diacritics =  'ÀÁÂÃÄÅàáâãäåÈÉÊËèéêëÌÍÎÏìíîïÒÓÔÕÖØòóôõöøÙÚÛÜùúûüÝýÿÑñÇç';
@@ -188,116 +199,271 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
         });
       }
     });
-    _connection.onMultipleBridges = _pickBridge;
     _focusNode.requestFocus();
     WidgetsBinding.instance.addPostFrameCallback((_) => _startup());
   }
 
-  Future<KnxBridge?> _pickBridge(List<KnxBridge> bridges) async {
-    final cs = Theme.of(context).colorScheme;
-    return showDialog<KnxBridge>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: cs.primary,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                  ),
-                  child: Row(
+  static const _prefLastHost = 'lastHost';
+  static const _prefLastPort = 'lastPort';
+
+  /// Shows connect dialog, connects, and re-shows on failure.
+  Future<void> _showConnectDialog() async {
+    while (true) {
+      final prefs = await SharedPreferences.getInstance();
+      final lastHost = prefs.getString(_prefLastHost) ?? '';
+      final lastPort = prefs.getInt(_prefLastPort) ?? knxPort;
+
+      final hostController = TextEditingController(text: lastHost);
+      final portController = TextEditingController(
+          text: lastPort == knxPort ? '' : lastPort.toString());
+
+      // Start discovery in background
+      final bridges = <KnxBridge>[];
+      var discovering = true;
+      _connection.discoverBridges().then((found) {
+        bridges.addAll(found);
+        discovering = false;
+      }).catchError((_) {
+        discovering = false;
+      });
+
+      if (!mounted) return;
+      final cs = Theme.of(context).colorScheme;
+
+      void doConnect(BuildContext ctx) {
+        final host = hostController.text.trim();
+        if (host.isEmpty) return;
+        final port = int.tryParse(portController.text.trim()) ?? knxPort;
+        Navigator.of(ctx).pop((host, port));
+      }
+
+      final result = await showDialog<(String, int)?>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (ctx, setDialogState) {
+              if (discovering) {
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  if (ctx.mounted) setDialogState(() {});
+                });
+              }
+
+              String discoveryLabel;
+              if (discovering) {
+                discoveryLabel = 'Searching for bridges\u2026';
+              } else if (bridges.isEmpty) {
+                discoveryLabel = 'No bridges discovered';
+              } else {
+                discoveryLabel = 'Bridges Discovered:';
+              }
+
+              return Dialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: SizedBox(
+                  width: 460,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Icon(Icons.router, color: cs.onPrimary, size: 20),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Select KNX/IP Bridge',
-                        style: TextStyle(
-                          color: cs.onPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: cs.primary,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.router, color: cs.onPrimary, size: 20),
+                            const SizedBox(width: 10),
+                            Text('Connect to KNX/IP Bridge',
+                              style: TextStyle(color: cs.onPrimary, fontSize: 15,
+                                  fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: TextField(
+                                controller: hostController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Host / IP Address',
+                                  hintText: '192.168.1.100',
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                                ),
+                                onTap: () => hostController.selection = TextSelection(
+                                    baseOffset: 0, extentOffset: hostController.text.length),
+                                onSubmitted: (_) => doConnect(ctx),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              width: 100,
+                              child: TextField(
+                                controller: portController,
+                                decoration: InputDecoration(
+                                  labelText: 'Port',
+                                  hintText: '$knxPort',
+                                  border: const OutlineInputBorder(),
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
+                                ),
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                  _PortRangeFormatter(),
+                                ],
+                                onTap: () => portController.selection = TextSelection(
+                                    baseOffset: 0, extentOffset: portController.text.length),
+                                onSubmitted: (_) => doConnect(ctx),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                        child: Row(
+                          children: [
+                            Text(discoveryLabel,
+                                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant,
+                                    fontWeight: FontWeight.w500)),
+                            if (discovering) ...[
+                              const SizedBox(width: 8),
+                              const SizedBox(width: 12, height: 12,
+                                  child: CircularProgressIndicator(strokeWidth: 2)),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (!discovering && bridges.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (final b in bridges)
+                                Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(8),
+                                    hoverColor: cs.primary.withAlpha(30),
+                                    splashColor: cs.primary.withAlpha(50),
+                                    highlightColor: cs.primary.withAlpha(40),
+                                    onTap: () {
+                                      hostController.text = b.ip;
+                                      portController.text = '';
+                                      setDialogState(() {});
+                                    },
+                                    onDoubleTap: () {
+                                      Navigator.of(ctx).pop((b.ip, knxPort));
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 8),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF9E9E9E),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text(b.ip,
+                                                style: const TextStyle(
+                                                  fontFamily: 'monospace', fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white)),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(b.name,
+                                                style: TextStyle(fontSize: 13, color: _cText),
+                                                overflow: TextOverflow.ellipsis),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(null),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton(
+                              onPressed: () => doConnect(ctx),
+                              child: const Text('Connect'),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final b in bridges)
-                        Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(8),
-                            hoverColor: cs.primary.withAlpha(30),
-                            splashColor: cs.primary.withAlpha(50),
-                            highlightColor: cs.primary.withAlpha(40),
-                            onTap: () => Navigator.of(ctx).pop(b),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF9E9E9E),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      b.ip,
-                                      style: const TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      b.name,
-                                      style: TextStyle(fontSize: 13, color: _cText),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 12, bottom: 10),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {
-                        Navigator.of(ctx).pop(null);
-                        exit(0);
-                      },
-                      child: const Text('Quit'),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+              );
+            },
+          );
+        },
+      );
+
+      hostController.dispose();
+      portController.dispose();
+
+      if (result == null) return; // User cancelled
+
+      final (host, port) = result;
+
+      setState(() {
+        _paused = false;
+        _events.clear();
+        _messageNumber = 0;
+        _startTime = null;
+        _selectedIndices.clear();
+        _searchController.clear();
+        _searchQuery = '';
+        _filteredIndices = null;
+      });
+      _connection.connect(host, port: port);
+
+      // Wait for connection result
+      await for (final state in _connection.stateChanges) {
+        if (state == knx.ConnectionState.connected) {
+          // Save to preferences only on successful connection
+          await prefs.setString(_prefLastHost, host);
+          if (port == knxPort) {
+            await prefs.remove(_prefLastPort);
+          } else {
+            await prefs.setInt(_prefLastPort, port);
+          }
+          return; // Success
+        }
+        if (state == knx.ConnectionState.error ||
+            state == knx.ConnectionState.disconnected) {
+          break; // Failed
+        }
+      }
+
+      // Connection failed — loop back to show dialog again
+      if (!mounted) return;
+    }
   }
 
   static const _gitSha = String.fromEnvironment('GIT_SHA');
@@ -332,10 +498,10 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   }
 
   Future<void> _startup() async {
-    if (widget.autoConnect) _connection.connect();
+    if (widget.autoConnect) _showConnectDialog();
   }
 
-  Future<void> _loadProjectFile(String path) async {
+  Future<bool> _loadProjectFile(String path) async {
     try {
       debugPrint('[KNX] Loading project: $path');
       final file = File(path);
@@ -355,8 +521,10 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
           _filteredIndices = _computeFiltered();
         }
       });
+      return true;
     } catch (e, st) {
       debugPrint('[KNX ERROR] Project load: $e\n$st');
+      return false;
     }
   }
 
@@ -374,8 +542,12 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       );
       if (result != null && result.files.single.path != null) {
         final path = result.files.single.path!;
-        await prefs.setString(_prefLastProjectDir, File(path).parent.path);
-        await _loadProjectFile(path);
+        final success = await _loadProjectFile(path);
+        if (success) {
+          await prefs.setString(_prefLastProjectDir, File(path).parent.path);
+        } else {
+          await prefs.remove(_prefLastProjectDir);
+        }
       }
     } catch (e) {
       debugPrint('[KNX ERROR] Project pick: $e');
@@ -739,7 +911,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                   size: 18),
               tooltip: _connState == knx.ConnectionState.connected
                   ? 'Disconnect'
-                  : 'Connect',
+                  : 'Connect\u2026',
               onPressed: _connState == knx.ConnectionState.searching ||
                       _connState == knx.ConnectionState.connecting
                   ? null
@@ -747,8 +919,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                       if (_connState == knx.ConnectionState.connected) {
                         _connection.disconnect();
                       } else {
-                        setState(() => _paused = false);
-                        _connection.connect();
+                        _showConnectDialog();
                       }
                     },
               visualDensity: VisualDensity.compact,
@@ -787,8 +958,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                       child: Text(
                         _events.isEmpty
                             ? (_connState == knx.ConnectionState.connected
-                                ? 'Waiting for bus events...'
-                                : _status)
+                                ? 'Waiting for messages\u2026'
+                                : 'No connection')
                             : 'No matching events',
                         style: TextStyle(
                             color: cs.onSurfaceVariant, fontSize: 13),
