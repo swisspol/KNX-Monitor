@@ -1,0 +1,30 @@
+name: Build macOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - run: flutter pub get
+
+      - run: flutter analyze
+
+      - run: flutter test
+
+      - run: flutter build macos --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KNX-Monitor-macOS
+          path: build/macos/Build/Products/Release/KNX Monitor.app
