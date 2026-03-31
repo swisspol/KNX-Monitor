@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'knx_types.dart';
@@ -22,6 +23,28 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final app = MaterialApp(
+      title: 'KNX Monitor',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blueAccent,
+          brightness: Brightness.light,
+        ),
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blueAccent,
+          brightness: Brightness.dark,
+        ),
+      ),
+      home: KnxMonitorPage(key: _pageKey),
+    );
+
+    if (defaultTargetPlatform != TargetPlatform.macOS) return app;
+
     return PlatformMenuBar(
       menus: [
         PlatformMenu(label: 'KNX Monitor', menus: [
@@ -67,31 +90,14 @@ class MyApp extends StatelessWidget {
           ]),
         ]),
       ],
-      child: MaterialApp(
-        title: 'KNX Monitor',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blueAccent,
-            brightness: Brightness.light,
-          ),
-        ),
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blueAccent,
-            brightness: Brightness.dark,
-          ),
-        ),
-        home: KnxMonitorPage(key: _pageKey),
-      ),
+      child: app,
     );
   }
 }
 
 class KnxMonitorPage extends StatefulWidget {
-  const KnxMonitorPage({super.key});
+  final bool autoConnect;
+  const KnxMonitorPage({super.key, this.autoConnect = true});
 
   @override
   State<KnxMonitorPage> createState() => _KnxMonitorPageState();
@@ -321,7 +327,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   }
 
   Future<void> _startup() async {
-    _connection.connect();
+    if (widget.autoConnect) _connection.connect();
   }
 
   Future<void> _loadProjectFile(String path) async {
