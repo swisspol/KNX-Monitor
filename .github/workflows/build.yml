@@ -12,6 +12,10 @@ on:
     paths-ignore:
       - "README.md"
       - "CLAUDE.md"
+
+permissions:
+  contents: write
+
 jobs:
   build-macos:
     runs-on: macos-15
