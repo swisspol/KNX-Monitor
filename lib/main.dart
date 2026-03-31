@@ -724,6 +724,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   static const _cBlue = Color(0xFF1565C0);
   static const _cGrey = Color(0xFF757575);
   static const _cText = Color(0xFF2C2C2C);
+  static const _cTextDim = Color(0xFF757575);
 
   Color _apciColor(String apci) {
     switch (apci) {
@@ -1066,7 +1067,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
             _dCell(_fmtRelative(e.time), _colTime,
                 ts.copyWith(color: cs.onSurfaceVariant)),
             _dCell(_fmtDelta(index), _colDelta,
-                ts.copyWith(color: cs.onSurfaceVariant, fontSize: 10),
+                ts.copyWith(color: _cTextDim, fontSize: 10),
                 Alignment.centerRight),
             _bubbleCell(e.direction, _colDir, _dirColor(e.direction), ts),
             _addrCell(e.source, _colSource, ts),
@@ -1082,7 +1083,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
             _bubbleCell(e.apci, _colApci, _apciColor(e.apci), ts),
             _dptCell(e.dpt, ts),
             _dCell(e.raw, _colRaw,
-                ts.copyWith(color: cs.onSurfaceVariant),
+                ts.copyWith(color: _cTextDim),
                 Alignment.centerRight),
             _dCell(e.value, _colValue, ts.copyWith(color: _cText)),
           ],
