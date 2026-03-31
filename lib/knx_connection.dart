@@ -17,6 +17,8 @@ class KnxConnection {
   int _bridgePort = knxPort;
   List<int> _localIp = [];
   int _localPort = 0;
+  List<int> _hpaiIp = [];
+  int _hpaiPort = 0;
 
   final _eventController = StreamController<KnxEvent>.broadcast();
   final _stateController = StreamController<ConnectionState>.broadcast();
@@ -65,8 +67,16 @@ class KnxConnection {
       _localPort = _socket!.port;
       debugPrint('[KNX] Bound to port $_localPort');
 
-      final connectPkt = _buildConnectRequest(_localIp, _localPort);
-      debugPrint('[KNX] Sending CONNECT_REQUEST (HPAI ${_localIp.join('.')}:$_localPort)');
+      // Use NAT mode (HPAI 0.0.0.0:0) if bridge is on a different subnet
+      final useNat = !_isSameSubnet(_localIp, _bridgeIp);
+      final hpaiIp = useNat ? [0, 0, 0, 0] : _localIp;
+      final hpaiPort = useNat ? 0 : _localPort;
+      if (useNat) {
+        debugPrint('[KNX] Using NAT mode (bridge on different subnet)');
+      }
+
+      final connectPkt = _buildConnectRequest(hpaiIp, hpaiPort);
+      debugPrint('[KNX] Sending CONNECT_REQUEST (HPAI ${hpaiIp.join('.')}:$hpaiPort)');
       _socket!.send(connectPkt, InternetAddress(_bridgeIp), _bridgePort);
 
       final completer = Completer<bool>();
@@ -89,6 +99,10 @@ class KnxConnection {
 
       _setState(ConnectionState.connected);
       _status('Connected');
+
+      // Store HPAI for heartbeats
+      _hpaiIp = hpaiIp;
+      _hpaiPort = hpaiPort;
 
       _heartbeatTimer = Timer.periodic(const Duration(seconds: 50), (_) {
         _sendHeartbeat();
@@ -185,6 +199,14 @@ class KnxConnection {
     return [0, 0, 0, 0];
   }
 
+  bool _isSameSubnet(List<int> localIp, String bridgeIp) {
+    final parts = bridgeIp.split('.');
+    if (parts.length != 4 || localIp.length != 4) return false;
+    final bp = parts.map((s) => int.tryParse(s)).toList();
+    if (bp.any((v) => v == null)) return false;
+    return localIp[0] == bp[0] && localIp[1] == bp[1] && localIp[2] == bp[2];
+  }
+
   Uint8List _buildConnectRequest(List<int> ip, int port) {
     final pkt = <int>[];
     pkt.addAll(knxHeader(svcConnectRequest, 26));
@@ -198,7 +220,7 @@ class KnxConnection {
     final pkt = <int>[];
     pkt.addAll(knxHeader(svcConnStateReq, 16));
     pkt.addAll([_channelId, 0x00]);
-    pkt.addAll(hpai(_localIp, _localPort));
+    pkt.addAll(hpai(_hpaiIp, _hpaiPort));
     _socket?.send(
         Uint8List.fromList(pkt), InternetAddress(_bridgeIp), _bridgePort);
   }
