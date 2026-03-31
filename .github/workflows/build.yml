@@ -4,14 +4,13 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - 'README.md'
-      - 'CLAUDE.md'
+      - "README.md"
+      - "CLAUDE.md"
   pull_request:
     branches: [main]
     paths-ignore:
-      - 'README.md'
-      - 'CLAUDE.md'
-
+      - "README.md"
+      - "CLAUDE.md"
 jobs:
   build-macos:
     runs-on: macos-15
@@ -27,4 +26,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: KNX-Monitor-macOS
-          path: build/macos/Build/Products/Release/KNX Monitor.app
+          path: build/macos/Build/Products/Release
