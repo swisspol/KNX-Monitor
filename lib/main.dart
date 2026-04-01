@@ -956,9 +956,19 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
               visualDensity: VisualDensity.compact,
             ),
             IconButton(
-              icon: const Icon(Icons.folder_open, size: 18),
-              tooltip: 'Load ETS Project\u2026',
-              onPressed: _pickProject,
+              icon: const Icon(Icons.delete_sweep, size: 18),
+              tooltip: 'Clear',
+              onPressed: _events.isEmpty ? null : () => setState(() {
+                _events.clear();
+                _messageNumber = 0;
+                _startTime = null;
+                _selectedIndices.clear();
+                _searchController.clear();
+                _searchQuery = '';
+                _filteredIndices = null;
+                _sourceCounts.clear();
+                _checkedSources.clear();
+              }),
               visualDensity: VisualDensity.compact,
             ),
             IconButton(
@@ -982,19 +992,9 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
               visualDensity: VisualDensity.compact,
             ),
             IconButton(
-              icon: const Icon(Icons.delete_sweep, size: 18),
-              tooltip: 'Clear',
-              onPressed: _events.isEmpty ? null : () => setState(() {
-                _events.clear();
-                _messageNumber = 0;
-                _startTime = null;
-                _selectedIndices.clear();
-                _searchController.clear();
-                _searchQuery = '';
-                _filteredIndices = null;
-                _sourceCounts.clear();
-                _checkedSources.clear();
-              }),
+              icon: const Icon(Icons.folder_open, size: 18),
+              tooltip: 'Load ETS Project\u2026',
+              onPressed: _pickProject,
               visualDensity: VisualDensity.compact,
             ),
             const SizedBox(width: 8),
