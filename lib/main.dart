@@ -1077,7 +1077,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
     if (selected) {
       bg = cs.primary.withAlpha(40);
     } else if (_isReadResponsePair(index)) {
-      bg = const Color(0xFFFFFDE7); // light yellow
+      bg = const Color(0xFFC8E6C9); // light green
     } else if (index.isEven) {
       bg = Colors.transparent;
     } else {
