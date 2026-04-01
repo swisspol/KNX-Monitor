@@ -74,6 +74,7 @@ KnxConnection (UDP sockets) → Stream<KnxEvent> → _KnxMonitorPageState → Li
 
 ### CI/CD
 - `.github/workflows/build_macos.yml` — macOS build, artifact upload, GitHub Release on `v*` tags
+- `.github/workflows/build_ios.yml` — iOS (iPad) build with `--no-codesign`, artifact upload, GitHub Release on `v*` tags
 - `.github/workflows/build_windows.yml` — Windows build with bundled VC++ runtime DLLs
 - Build number: `github.run_number`; git SHA injected via `--dart-define=GIT_SHA`
 - Version defined in `pubspec.yaml`; copyright in `AppInfo.xcconfig`
