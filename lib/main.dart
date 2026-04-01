@@ -99,8 +99,7 @@ class MyApp extends StatelessWidget {
 }
 
 class KnxMonitorPage extends StatefulWidget {
-  final bool autoConnect;
-  const KnxMonitorPage({super.key, this.autoConnect = true});
+  const KnxMonitorPage({super.key});
 
   @override
   State<KnxMonitorPage> createState() => _KnxMonitorPageState();
@@ -517,7 +516,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   }
 
   Future<void> _startup() async {
-    if (widget.autoConnect) _showConnectDialog();
+    _showConnectDialog();
   }
 
   Future<bool> _loadProjectFile(String path) async {
