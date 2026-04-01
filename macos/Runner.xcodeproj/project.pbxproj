@@ -368,12 +368,6 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
-			name = Debug;
-		};
-			name = Release;
-		};
-			name = Profile;
-		};
 		338D0CE9231458BD00FA5F75 /* Profile */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7AFA3C8E1D35360C0083082E /* Release.xcconfig */;
