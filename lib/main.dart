@@ -134,6 +134,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   final FocusNode _focusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
   final Set<int> _selectedIndices = {};
+  final Map<String, int> _sourceCounts = {};
+  final Set<String> _checkedSources = {};
   int? _anchorIndex;
 
   String _status = 'Disconnected';
@@ -185,6 +187,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
           }
 
           _events.insert(0, event);
+          _sourceCounts[event.source] =
+              (_sourceCounts[event.source] ?? 0) + 1;
 
           // Drop oldest events beyond limit
           if (_events.length > _maxEvents) {
@@ -192,8 +196,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
             _selectedIndices.removeWhere((i) => i >= _maxEvents);
           }
 
-          // Recompute search filter
-          if (_searchQuery.isNotEmpty) {
+          // Recompute filter
+          if (_hasFilter) {
             _filteredIndices = _computeFiltered();
           }
         });
@@ -444,6 +448,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
         _searchController.clear();
         _searchQuery = '';
         _filteredIndices = null;
+        _sourceCounts.clear();
+        _checkedSources.clear();
       });
       _connection.connect(host, port: port);
 
@@ -521,7 +527,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
           e.deviceName = project.lookupDevice(e.source);
           e.groupName = project.lookupGA(e.destination);
         }
-        if (_searchQuery.isNotEmpty) {
+        if (_hasFilter) {
           _filteredIndices = _computeFiltered();
         }
       });
@@ -570,17 +576,35 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   void _onSearchChanged(String query) {
     setState(() {
       _searchQuery = query;
-      _filteredIndices = _searchQuery.isEmpty ? null : _computeFiltered();
+      _recomputeFilter();
       _selectedIndices.clear();
     });
   }
 
+  bool get _hasFilter =>
+      _searchQuery.isNotEmpty || _checkedSources.isNotEmpty;
+
+  void _recomputeFilter() {
+    _filteredIndices = _hasFilter ? _computeFiltered() : null;
+  }
+
   List<int> _computeFiltered() {
-    final words = _normalize(_searchQuery).split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    if (words.isEmpty) return List.generate(_events.length, (i) => i);
+    final words = _searchQuery.isNotEmpty
+        ? _normalize(_searchQuery)
+            .split(RegExp(r'\s+'))
+            .where((w) => w.isNotEmpty)
+            .toList()
+        : <String>[];
     final result = <int>[];
     for (var i = 0; i < _events.length; i++) {
-      if (_eventMatchesAll(_events[i], words)) result.add(i);
+      final e = _events[i];
+      // Source filter: if any sources are checked, only show those
+      if (_checkedSources.isNotEmpty && !_checkedSources.contains(e.source)) {
+        continue;
+      }
+      // Search filter
+      if (words.isNotEmpty && !_eventMatchesAll(e, words)) continue;
+      result.add(i);
     }
     return result;
   }
@@ -719,28 +743,27 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
 
   // --- Read/Response pair detection ---
 
-  /// Returns true if the event at [index] is part of a Read/Response pair.
-  /// A pair is a Read and Response to the same group address within 2 seconds.
-  /// Events are newest-first, so Response (newer) is at a lower index than Read (older).
+  /// Returns true if the event at [index] is part of a Read/Response pair
+  /// where both events are currently visible (not filtered out).
   bool _isReadResponsePair(int index) {
     final e = _events[index];
+    final visible = _filteredIndices;
+
     if (e.apci == 'Response') {
-      // Look for a matching Read in older events (higher index)
       for (var i = index + 1; i < _events.length && i <= index + 10; i++) {
         final other = _events[i];
         if (other.destination == e.destination && other.apci == 'Read' &&
             e.time.difference(other.time).inMilliseconds.abs() < 2000) {
-          return true;
+          return visible == null || visible.contains(i);
         }
         if (e.time.difference(other.time).inMilliseconds > 2000) break;
       }
     } else if (e.apci == 'Read') {
-      // Look for a matching Response in newer events (lower index)
       for (var i = index - 1; i >= 0 && i >= index - 10; i--) {
         final other = _events[i];
         if (other.destination == e.destination && other.apci == 'Response' &&
             other.time.difference(e.time).inMilliseconds.abs() < 2000) {
-          return true;
+          return visible == null || visible.contains(i);
         }
         if (other.time.difference(e.time).inMilliseconds > 2000) break;
       }
@@ -969,6 +992,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                 _searchController.clear();
                 _searchQuery = '';
                 _filteredIndices = null;
+                _sourceCounts.clear();
+                _checkedSources.clear();
               }),
               visualDensity: VisualDensity.compact,
             ),
@@ -979,11 +1004,16 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       body: Focus(
         focusNode: _focusNode,
         autofocus: true,
-        child: Column(
-            children: [
-              _buildHeader(cs),
-              Container(height: 1, color: cs.outlineVariant.withAlpha(80)),
-              Expanded(
+        child: Row(
+          children: [
+            _buildSourcesPanel(cs),
+            Container(width: 1, color: cs.outlineVariant.withAlpha(80)),
+            Expanded(
+              child: Column(
+                children: [
+                  _buildHeader(cs),
+                  Container(height: 1, color: cs.outlineVariant.withAlpha(80)),
+                  Expanded(
                 child: () {
                   final indices = _filteredIndices;
                   final count = indices?.length ?? _events.length;
@@ -1010,11 +1040,190 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                     },
                   );
                 }(),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  static const double _sourcesPanelWidth = 250;
+
+  Widget _buildSourcesPanel(ColorScheme cs) {
+    // Sort: checked first, then by count descending, then by address ascending
+    final sources = _sourceCounts.keys.toList()
+      ..sort((a, b) {
+        final ac = _checkedSources.contains(a);
+        final bc = _checkedSources.contains(b);
+        if (ac != bc) return ac ? -1 : 1;
+        final countCmp = (_sourceCounts[b] ?? 0).compareTo(_sourceCounts[a] ?? 0);
+        if (countCmp != 0) return countCmp;
+        return _comparePhysAddr(a, b);
+      });
+
+    return SizedBox(
+      width: _sourcesPanelWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            height: _headerHeight,
+            color: cs.surfaceContainerHighest.withAlpha(120),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Sources',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurfaceVariant,
+                  )),
+            ),
+          ),
+          Container(height: 1, color: cs.outlineVariant.withAlpha(80)),
+          Expanded(
+            child: sources.isEmpty
+                ? Center(
+                    child: Text('No Sources',
+                        style: TextStyle(
+                            color: cs.onSurfaceVariant, fontSize: 12)),
+                  )
+                : ListView.builder(
+                    itemCount: sources.length,
+                    itemExtent: 48,
+                    itemBuilder: (context, i) {
+                      final src = sources[i];
+                      final count = _sourceCounts[src] ?? 0;
+                      final checked = _checkedSources.contains(src);
+                      final deviceName =
+                          _connection.project?.lookupDevice(src) ?? '';
+                      return Material(
+                        color: checked
+                            ? cs.primary.withAlpha(20)
+                            : Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              if (checked) {
+                                _checkedSources.remove(src);
+                              } else {
+                                _checkedSources.add(src);
+                              }
+                              _recomputeFilter();
+                            });
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          _addrColor(src) == _addrColor(src)
+                                              ? Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 5,
+                                                      vertical: 1),
+                                                  decoration: BoxDecoration(
+                                                    color: _addrColor(src)
+                                                        .withAlpha(35),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            4),
+                                                  ),
+                                                  child: Text(src,
+                                                      style: TextStyle(
+                                                        fontFamily: 'monospace',
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color:
+                                                            _addrColor(src),
+                                                      )),
+                                                )
+                                              : const SizedBox(),
+                                          const Spacer(),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: cs.surfaceContainerHighest,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text('$count',
+                                                style: TextStyle(
+                                                    fontSize: 10,
+                                                    color:
+                                                        cs.onSurfaceVariant)),
+                                          ),
+                                        ],
+                                      ),
+                                      if (deviceName.isNotEmpty)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 2),
+                                          child: Text(deviceName,
+                                              style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: _cTextDim),
+                                              overflow: TextOverflow.ellipsis),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: Checkbox(
+                                    value: checked,
+                                    onChanged: (_) {
+                                      setState(() {
+                                        if (checked) {
+                                          _checkedSources.remove(src);
+                                        } else {
+                                          _checkedSources.add(src);
+                                        }
+                                        _recomputeFilter();
+                                      });
+                                    },
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _comparePhysAddr(String a, String b) {
+    final ap = a.split('.').map((s) => int.tryParse(s) ?? 0).toList();
+    final bp = b.split('.').map((s) => int.tryParse(s) ?? 0).toList();
+    for (var i = 0; i < 3; i++) {
+      final ai = i < ap.length ? ap[i] : 0;
+      final bi = i < bp.length ? bp[i] : 0;
+      if (ai != bi) return ai.compareTo(bi);
+    }
+    return 0;
   }
 
   Widget _buildHeader(ColorScheme cs) {
