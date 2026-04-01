@@ -33,11 +33,15 @@ KnxConnection (UDP sockets) → Stream<KnxEvent> → _KnxMonitorPageState → Li
 
 - **`lib/knx_connection.dart`** — KNXnet/IP protocol: multicast bridge discovery, UDP tunnel connection with automatic NAT mode (uses `0.0.0.0:0` HPAI when bridge is on a different subnet), cEMI frame parsing, heartbeat. Exposes three broadcast streams: `events`, `stateChanges`, `statusMessages`. The `connect()` method takes an explicit host and port; discovery is separate.
 
-- **`lib/knx_types.dart`** — Data models (`KnxEvent`, `GAInfo`, `DeviceInfo`, `KnxBridge`), protocol constants, address formatting, DPT decoding (boolean, percentage, float16, float32, string). `KnxEvent.deviceName` and `groupName` are mutable so they can be updated when an ETS project is loaded after events are already captured.
+- **`lib/knx_types.dart`** — Data models (`KnxEvent`, `GAInfo`, `DeviceInfo`, `KnxBridge`), protocol constants, address formatting, DPT decoding (boolean, dim control, percentage, float16, uint32, float32, string). `KnxEvent.deviceName` and `groupName` are mutable so they can be updated when an ETS project is loaded after events are already captured.
 
 - **`lib/ets_project.dart`** — Parses `.knxproj` files (ZIP archives containing ETS XML). Extracts device topology from `P-*/0.xml`, group addresses with DPT types, and product catalog from manufacturer `Hardware.xml`/`Catalog.xml` files.
 
-- **`lib/main.dart`** — All UI: `PlatformMenuBar` (macOS-native menus, guarded by `defaultTargetPlatform`), connect dialog with discovery + manual host/port entry, toolbar with search, responsive table with `Expanded` flex columns (Device/Group Address stretch), row selection model, JSON copy via Cmd+C. Search uses diacritic-insensitive full-word matching.
+- **`lib/app_log.dart`** — Centralized logging setup using the `logging` package. Initializes a root logger at `INFO` level and maintains a 1000-entry `logHistory` ring buffer of `LogRecord`s.
+
+- **`lib/log_window.dart`** — `LogWindow` widget: a scrollable, selectable log viewer opened from the toolbar. Supports row selection (click, Cmd+click, Shift+click), Cmd+C to copy, auto-scroll to bottom, and color-coded severity levels (INFO/WARN/ERROR).
+
+- **`lib/main.dart`** — All UI: `PlatformMenuBar` (macOS-native menus, guarded by `defaultTargetPlatform`), connect dialog with discovery + manual host/port entry, toolbar with search, responsive table with `Expanded` flex columns (Device/Group Address stretch), row selection model, JSON copy via Cmd+C, and log window access. Search uses diacritic-insensitive full-word matching. Initializes logging via `initLogging()` at startup.
 
 ### Key Design Decisions
 
@@ -64,6 +68,6 @@ KnxConnection (UDP sockets) → Stream<KnxEvent> → _KnxMonitorPageState → Li
 
 ### CI/CD
 - `.github/workflows/build_macos.yml` — macOS build, test, artifact upload, GitHub Release on `v*` tags
-- `.github/workflows/build-windows.yml` — Windows build with bundled VC++ runtime DLLs
+- `.github/workflows/build_windows.yml` — Windows build with bundled VC++ runtime DLLs
 - Build number: `github.run_number`; git SHA injected via `--dart-define=GIT_SHA`
 - Version defined in `pubspec.yaml`; copyright in `AppInfo.xcconfig`
