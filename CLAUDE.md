@@ -11,7 +11,6 @@ flutter run -d windows   # Run in debug mode (Windows)
 flutter build macos --release  # Production build → build/macos/Build/Products/Release/KNX Monitor.app
 flutter build windows --release  # Production build → build/windows/x64/runner/Release/
 flutter analyze          # Static analysis (must pass with no issues)
-flutter test             # Run widget tests
 ```
 
 Always run `flutter analyze` after code changes — it must report zero issues.
@@ -51,7 +50,6 @@ KnxConnection (UDP sockets) → Stream<KnxEvent> → _KnxMonitorPageState → Li
 - **Newest events first** — events insert at index 0; selected indices shift +1 on each insert.
 - **1000 event buffer** — oldest events are dropped without resetting message count or start time.
 - **Sandbox entitlements (macOS)** — network client/server for KNX UDP, `files.user-selected.read-only` for file picker. CLI path access is not available under sandbox.
-- **Test isolation** — `KnxMonitorPage` has `autoConnect` parameter (default true) to prevent network activity in tests.
 - **Color constants** — `_cRed`, `_cGreen`, `_cBlue`, `_cGrey`, `_cText`, `_cTextDim` shared across Dir, APCI, DPT, Value columns. DPT colors are semantic per major number.
 
 ## Platform Configuration
@@ -67,7 +65,7 @@ KnxConnection (UDP sockets) → Stream<KnxEvent> → _KnxMonitorPageState → Li
 - Minimum size: `windows/runner/win32_window.cpp` (`WM_GETMINMAXINFO` handler, min 1080x400)
 
 ### CI/CD
-- `.github/workflows/build_macos.yml` — macOS build, test, artifact upload, GitHub Release on `v*` tags
+- `.github/workflows/build_macos.yml` — macOS build, artifact upload, GitHub Release on `v*` tags
 - `.github/workflows/build_windows.yml` — Windows build with bundled VC++ runtime DLLs
 - Build number: `github.run_number`; git SHA injected via `--dart-define=GIT_SHA`
 - Version defined in `pubspec.yaml`; copyright in `AppInfo.xcconfig`
