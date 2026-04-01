@@ -25,6 +25,21 @@ ABOUT_SIZE = 128
 MACOS_DIR = SCRIPT_DIR / "macos" / "Runner" / "Assets.xcassets" / "AppIcon.appiconset"
 MACOS_SIZES = [16, 32, 64, 128, 256, 512, 1024]
 
+# iOS (iPad-only) icon set — sizes derived from Contents.json
+IOS_DIR = SCRIPT_DIR / "ios" / "Runner" / "Assets.xcassets" / "AppIcon.appiconset"
+IOS_ICONS = {
+    "Icon-App-20x20@1x.png": 20,
+    "Icon-App-20x20@2x.png": 40,
+    "Icon-App-29x29@1x.png": 29,
+    "Icon-App-29x29@2x.png": 58,
+    "Icon-App-40x40@1x.png": 40,
+    "Icon-App-40x40@2x.png": 80,
+    "Icon-App-76x76@1x.png": 76,
+    "Icon-App-76x76@2x.png": 152,
+    "Icon-App-83.5x83.5@2x.png": 167,
+    "Icon-App-1024x1024@1x.png": 1024,
+}
+
 # Windows .ico — contains multiple sizes in one file
 WINDOWS_ICO = SCRIPT_DIR / "windows" / "runner" / "resources" / "app_icon.ico"
 WINDOWS_SIZES = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
@@ -50,6 +65,15 @@ def main():
         else:
             src.resize((size, size), Image.LANCZOS).save(path, "PNG", optimize=True)
         print(f"  {path} ({size}x{size})")
+
+    # iOS (iPad-only) icon set
+    for filename, px in IOS_ICONS.items():
+        path = IOS_DIR / filename
+        if px == 1024:
+            src.save(path, "PNG", optimize=True)
+        else:
+            src.resize((px, px), Image.LANCZOS).save(path, "PNG", optimize=True)
+        print(f"  {path} ({px}x{px})")
 
     # Windows .ico — Pillow's ICO plugin requires passing all sizes via
     # append_images on the largest image, not the smallest.
