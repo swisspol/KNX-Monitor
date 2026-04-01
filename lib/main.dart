@@ -717,6 +717,37 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
     return '+${secs.toStringAsFixed(3)}';
   }
 
+  // --- Read/Response pair detection ---
+
+  /// Returns true if the event at [index] is part of a Read/Response pair.
+  /// A pair is a Read and Response to the same group address within 2 seconds.
+  /// Events are newest-first, so Response (newer) is at a lower index than Read (older).
+  bool _isReadResponsePair(int index) {
+    final e = _events[index];
+    if (e.apci == 'Response') {
+      // Look for a matching Read in older events (higher index)
+      for (var i = index + 1; i < _events.length && i <= index + 10; i++) {
+        final other = _events[i];
+        if (other.destination == e.destination && other.apci == 'Read' &&
+            e.time.difference(other.time).inMilliseconds.abs() < 2000) {
+          return true;
+        }
+        if (e.time.difference(other.time).inMilliseconds > 2000) break;
+      }
+    } else if (e.apci == 'Read') {
+      // Look for a matching Response in newer events (lower index)
+      for (var i = index - 1; i >= 0 && i >= index - 10; i--) {
+        final other = _events[i];
+        if (other.destination == e.destination && other.apci == 'Response' &&
+            other.time.difference(e.time).inMilliseconds.abs() < 2000) {
+          return true;
+        }
+        if (other.time.difference(e.time).inMilliseconds > 2000) break;
+      }
+    }
+    return false;
+  }
+
   // --- Colors ---
 
   static const _cRed = Color(0xFFC62828);
@@ -1045,6 +1076,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
     Color bg;
     if (selected) {
       bg = cs.primary.withAlpha(40);
+    } else if (_isReadResponsePair(index)) {
+      bg = const Color(0xFFFFFDE7); // light yellow
     } else if (index.isEven) {
       bg = Colors.transparent;
     } else {
