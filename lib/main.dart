@@ -223,15 +223,17 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       final portController = TextEditingController(
           text: lastPort == knxPort ? '' : lastPort.toString());
 
-      // Start discovery in background
+      // Start discovery in background (not supported on iOS — no multicast entitlement)
       final bridges = <KnxBridge>[];
-      var discovering = true;
-      _connection.discoverBridges().then((found) {
-        bridges.addAll(found);
-        discovering = false;
-      }).catchError((_) {
-        discovering = false;
-      });
+      var discovering = !Platform.isIOS;
+      if (discovering) {
+        _connection.discoverBridges().then((found) {
+          bridges.addAll(found);
+          discovering = false;
+        }).catchError((_) {
+          discovering = false;
+        });
+      }
 
       if (!mounted) return;
       final cs = Theme.of(context).colorScheme;
@@ -345,6 +347,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                           ],
                         ),
                       ),
+                      if (!Platform.isIOS) ...[
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                         child: Row(
@@ -409,6 +412,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                             ],
                           ),
                         ),
+                      ],
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
                         child: Row(
