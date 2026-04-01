@@ -8,11 +8,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'app_log.dart';
 import 'knx_types.dart';
 import 'ets_project.dart';
 import 'knx_connection.dart' as knx;
+import 'log_window.dart';
 
 void main() {
+  initLogging();
   runApp(const MyApp());
 }
 
@@ -241,18 +244,21 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
         Navigator.of(ctx).pop((host, port));
       }
 
+    VoidCallback? hostListener;
+
       final result = await showDialog<(String, int)?>(
         context: context,
         barrierDismissible: false,
         builder: (ctx) {
           return StatefulBuilder(
             builder: (ctx, setDialogState) {
-              // Rebuild dialog when host field changes (for Connect button state)
-              void onHostChanged() {
-                if (ctx.mounted) setDialogState(() {});
+              // Set up host field listener once
+              if (hostListener == null) {
+                hostListener = () {
+                  if (ctx.mounted) setDialogState(() {});
+                };
+                hostController.addListener(hostListener!);
               }
-              hostController.removeListener(onHostChanged);
-              hostController.addListener(onHostChanged);
 
               if (discovering) {
                 Future.delayed(const Duration(milliseconds: 300), () {
@@ -432,6 +438,9 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
         },
       );
 
+      if (hostListener != null) {
+        hostController.removeListener(hostListener!);
+      }
       hostController.dispose();
       portController.dispose();
 
@@ -513,13 +522,13 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
 
   Future<bool> _loadProjectFile(String path) async {
     try {
-      debugPrint('[KNX] Loading project: $path');
+      log.info('Loading project: $path');
       final file = File(path);
       final bytes = await file.readAsBytes();
-      debugPrint('[KNX] Read ${bytes.length} bytes');
+      log.info('Read ${bytes.length} bytes');
       final project = EtsProject.loadFromBytes(bytes);
       _connection.project = project;
-      debugPrint('[KNX] Project: ${project.devices.length} devices, '
+      log.info('Project: ${project.devices.length} devices, '
           '${project.groupAddresses.length} GAs');
       // Retranslate existing events with new project data
       setState(() {
@@ -533,9 +542,27 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       });
       return true;
     } catch (e, st) {
-      debugPrint('[KNX ERROR] Project load: $e\n$st');
+      log.severe('Project load: $e', e, st);
       return false;
     }
+  }
+
+  void _openLogWindow() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: const SizedBox(
+          width: 900,
+          height: 500,
+          child: ClipRRect(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+            child: LogWindow(),
+          ),
+        ),
+      ),
+    );
   }
 
   static const _prefLastProjectDir = 'lastProjectDir';
@@ -560,7 +587,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
         }
       }
     } catch (e) {
-      debugPrint('[KNX ERROR] Project pick: $e');
+      log.severe('Project pick: $e');
     }
   }
 
@@ -995,6 +1022,12 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
               icon: const Icon(Icons.folder_open, size: 18),
               tooltip: 'Load ETS Project\u2026',
               onPressed: _pickProject,
+              visualDensity: VisualDensity.compact,
+            ),
+            IconButton(
+              icon: const Icon(Icons.article_outlined, size: 18),
+              tooltip: 'Log',
+              onPressed: _openLogWindow,
               visualDensity: VisualDensity.compact,
             ),
             const SizedBox(width: 8),

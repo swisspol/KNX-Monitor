@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:logging/logging.dart';
 import 'knx_types.dart';
 import 'ets_project.dart';
+
+final _log = Logger('KNX');
 
 enum ConnectionState { disconnected, connecting, connected, error }
 
@@ -38,7 +41,7 @@ class KnxConnection {
   }
 
   void _status(String msg) {
-    debugPrint('[KNX] $msg');
+    _log.info(msg);
     _statusController.add(msg);
   }
 
@@ -54,29 +57,29 @@ class KnxConnection {
         final addresses = await InternetAddress.lookup(host);
         _bridgeIp = addresses.first.address;
         if (_bridgeIp != host) {
-          debugPrint('[KNX] Resolved $host to $_bridgeIp');
+          _log.info('Resolved $host to $_bridgeIp');
         }
       } catch (e) {
         throw Exception('Cannot resolve hostname: $host');
       }
 
       _localIp = await _findLocalIp(_bridgeIp);
-      debugPrint('[KNX] Local IP: ${_localIp.join('.')}');
+      _log.info('Local IP: ${_localIp.join('.')}');
 
       _socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
       _localPort = _socket!.port;
-      debugPrint('[KNX] Bound to port $_localPort');
+      _log.info('Bound to port $_localPort');
 
       // Use NAT mode (HPAI 0.0.0.0:0) if bridge is on a different subnet
       final useNat = !_isSameSubnet(_localIp, _bridgeIp);
       final hpaiIp = useNat ? [0, 0, 0, 0] : _localIp;
       final hpaiPort = useNat ? 0 : _localPort;
       if (useNat) {
-        debugPrint('[KNX] Using NAT mode (bridge on different subnet)');
+        _log.info('Using NAT mode (bridge on different subnet)');
       }
 
       final connectPkt = _buildConnectRequest(hpaiIp, hpaiPort);
-      debugPrint('[KNX] Sending CONNECT_REQUEST (HPAI ${hpaiIp.join('.')}:$hpaiPort)');
+      _log.info('Sending CONNECT_REQUEST (HPAI ${hpaiIp.join('.')}:$hpaiPort)');
       _socket!.send(connectPkt, InternetAddress(_bridgeIp), _bridgePort);
 
       final completer = Completer<bool>();
@@ -90,7 +93,7 @@ class KnxConnection {
 
       Timer(const Duration(seconds: 5), () {
         if (!completer.isCompleted) {
-          debugPrint('[KNX] Connect timeout — no CONNECT_RESPONSE received');
+          _log.info('Connect timeout — no CONNECT_RESPONSE received');
           completer.completeError('Connection timeout');
         }
       });
@@ -108,7 +111,7 @@ class KnxConnection {
         _sendHeartbeat();
       });
     } catch (e, st) {
-      debugPrint('[KNX ERROR] $e\n$st');
+      _log.severe('$e', e, st);
       _setState(ConnectionState.error);
       _status('Connection Failure');
     }
@@ -124,11 +127,11 @@ class KnxConnection {
         final status = data[7];
         if (connectCompleter != null && !connectCompleter.isCompleted) {
           if (status != 0) {
-            debugPrint('[KNX] Connect refused: 0x${status.toRadixString(16)}');
+            _log.info('Connect refused: 0x${status.toRadixString(16)}');
             connectCompleter.completeError(
                 'Connect refused: 0x${status.toRadixString(16)}');
           } else {
-            debugPrint('[KNX] Connect OK, channel $_channelId');
+            _log.info('Connect OK, channel $_channelId');
             connectCompleter.complete(true);
           }
         }
@@ -146,15 +149,15 @@ class KnxConnection {
 
       case svcConnStateResp:
         if (data.length > 7 && data[7] != 0) {
-          debugPrint('[KNX] Heartbeat error: 0x${data[7].toRadixString(16)}');
-          debugPrint('[KNX] Connection state error: 0x${data[7].toRadixString(16)}');
+          _log.info('Heartbeat error: 0x${data[7].toRadixString(16)}');
+          _log.info('Connection state error: 0x${data[7].toRadixString(16)}');
         } else {
-          debugPrint('[KNX] Heartbeat OK');
+          _log.info('Heartbeat OK');
         }
         break;
 
       case svcDisconnectReq:
-        debugPrint('[KNX] Bridge requested disconnect');
+        _log.info('Bridge requested disconnect');
         final pkt = <int>[];
         pkt.addAll(knxHeader(svcDisconnectResp, 10));
         pkt.addAll([_channelId, 0x00, 0x00, 0x00]);
@@ -168,7 +171,7 @@ class KnxConnection {
   Future<List<int>> _findLocalIp(String bridgeIp) async {
     final interfaces =
         await NetworkInterface.list(type: InternetAddressType.IPv4);
-    debugPrint('[KNX] Interfaces: ${interfaces.map((i) => '${i.name}=${i.addresses.map((a) => a.address).join(',')}').join('; ')}');
+    _log.info('Interfaces: ${interfaces.map((i) => '${i.name}=${i.addresses.map((a) => a.address).join(',')}').join('; ')}');
 
     // Try /24 subnet match if bridge address is an IP
     final bridgeParts = bridgeIp.split('.');
@@ -180,7 +183,7 @@ class KnxConnection {
             if (addr.isLoopback) continue;
             final parts = addr.address.split('.').map(int.parse).toList();
             if (parts[0] == bp[0] && parts[1] == bp[1] && parts[2] == bp[2]) {
-              debugPrint('[KNX] Matched ${addr.address} on ${iface.name} (same /24)');
+              _log.info('Matched ${addr.address} on ${iface.name} (same /24)');
               return parts;
             }
           }
@@ -302,7 +305,7 @@ class KnxConnection {
       (localPort >> 8) & 0xFF, localPort & 0xFF,
     ]);
 
-    debugPrint('[KNX] Sending SEARCH_REQUEST to $knxMulticast:$knxPort');
+    _log.info('Sending SEARCH_REQUEST to $knxMulticast:$knxPort');
     socket.send(
         Uint8List.fromList(pkt), InternetAddress(knxMulticast), knxPort);
 
@@ -344,12 +347,12 @@ class KnxConnection {
         }
       }
 
-      debugPrint('[KNX] Found bridge: $ipStr ${name.isNotEmpty ? "($name)" : ""}');
+      _log.info('Found bridge: $ipStr ${name.isNotEmpty ? "($name)" : ""}');
       bridges.add(KnxBridge(ipStr, name));
     }
 
     socket.close();
-    debugPrint('[KNX] Discovery done: ${bridges.length} bridge(s)');
+    _log.info('Discovery done: ${bridges.length} bridge(s)');
     return bridges;
   }
 
