@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -185,7 +186,7 @@ class _LogWindowState extends State<LogWindow> {
                       final levelCol = _levelColor(r.level);
 
                       return GestureDetector(
-                        onTap: () => _onRowTap(index),
+                        onTap: Platform.isIOS ? null : () => _onRowTap(index),
                         child: Container(
                           height: 24,
                           color: bg,

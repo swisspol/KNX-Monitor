@@ -150,7 +150,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   static const int _maxEvents = 1000;
 
   // Fixed column widths
-  static const double _colNum = 52;
+  static const double _colNum = 42;
   static const double _colTime = 82;
   static const double _colDelta = 72;
   static const double _colDir = 46;
@@ -892,6 +892,9 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
 
   // --- Status icon ---
 
+  bool get _showProjectColumns =>
+      !Platform.isIOS || _connection.project != null;
+
   String get _statusLabel {
     switch (_connState) {
       case knx.ConnectionState.connected:
@@ -1309,9 +1312,9 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
           _fixedCell('\u0394t', _colDelta, style, Alignment.centerRight),
           _fixedCell('Dir', _colDir, style),
           _fixedCell('Source', _colSource, style),
-          Expanded(flex: 38, child: _padText('Device', style)),
+          if (_showProjectColumns) Expanded(flex: 38, child: _padText('Device', style)),
           _fixedCell('Destination', _colDest, style),
-          Expanded(flex: 62, child: _padText('Group Address', style)),
+          if (_showProjectColumns) Expanded(flex: 62, child: _padText('Group Address', style)),
           _fixedCell('APCI', _colApci, style),
           _fixedCell('DPT', _colDpt, style),
           _fixedCell('Raw', _colRaw, style, Alignment.centerRight),
@@ -1362,7 +1365,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
         fontSize: 11, fontFamily: 'monospace', fontFamilyFallback: ['Menlo', 'Courier']);
 
     return GestureDetector(
-      onTap: () => _onRowTap(index),
+      onTap: Platform.isIOS ? null : () => _onRowTap(index),
       child: Container(
         height: _rowHeight,
         color: bg,
@@ -1378,12 +1381,12 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                 Alignment.centerRight),
             _bubbleCell(e.direction, _colDir, _dirColor(e.direction), ts),
             _addrCell(e.source, _colSource, ts),
-            Expanded(
+            if (_showProjectColumns) Expanded(
               flex: 38,
               child: _padData(e.deviceName, ts.copyWith(color: _cText)),
             ),
             _addrCell(e.destination, _colDest, ts),
-            Expanded(
+            if (_showProjectColumns) Expanded(
               flex: 62,
               child: _padData(e.groupName, ts.copyWith(color: _cText)),
             ),
