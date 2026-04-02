@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -142,6 +143,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
 
   knx.ConnectionState _connState = knx.ConnectionState.disconnected;
   bool _paused = false;
+  bool _showSourcesPanel = false;
   int _messageNumber = 0;
   DateTime? _startTime;
   String _searchQuery = '';
@@ -469,24 +471,35 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       });
       _connection.connect(host, port: port);
 
-      // Wait for connection result
-      await for (final state in _connection.stateChanges) {
+      // Wait for connection result — use a manual subscription
+      // so we can cleanly cancel it
+      final connected = Completer<bool>();
+      final sub = _connection.stateChanges.listen((state) {
+        if (connected.isCompleted) return;
         if (state == knx.ConnectionState.connected) {
-          // Save to preferences only on successful connection
-          await prefs.setString(_prefLastHost, host);
-          if (port == knxPort) {
-            await prefs.remove(_prefLastPort);
-          } else {
-            await prefs.setInt(_prefLastPort, port);
-          }
+          connected.complete(true);
+        } else if (state == knx.ConnectionState.error ||
+            state == knx.ConnectionState.disconnected) {
+          connected.complete(false);
+        }
+      });
+
+      final success = await connected.future;
+      await sub.cancel();
+
+      if (success) {
+        await prefs.setString(_prefLastHost, host);
+        if (port == knxPort) {
+          await prefs.remove(_prefLastPort);
+        } else {
+          await prefs.setInt(_prefLastPort, port);
+        }
+        // Don't dispose controllers immediately — let the dialog animation finish
+        Future.delayed(const Duration(milliseconds: 500), () {
           hostController.dispose();
           portController.dispose();
-          return; // Success
-        }
-        if (state == knx.ConnectionState.error ||
-            state == knx.ConnectionState.disconnected) {
-          break; // Failed
-        }
+        });
+        return;
       }
 
       // Connection failed — loop back to show dialog again
@@ -497,8 +510,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       }
     }
     } catch (_) {
-      hostController.dispose();
-      portController.dispose();
+      // Safety net
     }
   }
 
@@ -1007,6 +1019,29 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
           ),
           actions: [
             IconButton(
+              icon: Icon(
+                _showSourcesPanel ? Icons.filter_list_off : Icons.filter_list,
+                size: 18,
+              ),
+              tooltip: _showSourcesPanel ? 'Hide Source Filter' : 'Show Source Filter',
+              onPressed: () => setState(() {
+                _showSourcesPanel = !_showSourcesPanel;
+                if (!_showSourcesPanel) {
+                  _checkedSources.clear();
+                  _recomputeFilter();
+                }
+              }),
+              visualDensity: VisualDensity.compact,
+            ),
+            SizedBox(
+              height: 24,
+              child: VerticalDivider(
+                width: 16,
+                thickness: 1,
+                color: cs.onPrimary.withAlpha(60),
+              ),
+            ),
+            IconButton(
               icon: Icon(_paused ? Icons.play_arrow : Icons.pause, size: 18),
               tooltip: _paused ? 'Resume' : 'Pause',
               onPressed: _connState == knx.ConnectionState.connected
@@ -1044,9 +1079,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                   : () {
                       if (_connState == knx.ConnectionState.connected) {
                         _connection.disconnect();
-                      } else {
-                        _showConnectDialog();
                       }
+                      _showConnectDialog();
                     },
               visualDensity: VisualDensity.compact,
             ),
@@ -1071,8 +1105,10 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
         autofocus: true,
         child: Row(
           children: [
-            _buildSourcesPanel(cs),
-            Container(width: 1, color: cs.outlineVariant.withAlpha(80)),
+            if (_showSourcesPanel) ...[
+              _buildSourcesPanel(cs),
+              Container(width: 1, color: cs.outlineVariant.withAlpha(80)),
+            ],
             Expanded(
               child: Column(
                 children: [
@@ -1140,7 +1176,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text('Sources',
+              child: Text('Source Filter',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,

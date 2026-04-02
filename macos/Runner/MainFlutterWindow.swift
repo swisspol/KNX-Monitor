@@ -6,11 +6,11 @@ class MainFlutterWindow: NSWindow {
     let flutterViewController = FlutterViewController()
     self.contentViewController = flutterViewController
 
-    self.setContentSize(NSSize(width: 1550, height: 800))
-    self.minSize = NSSize(width: 1330, height: 400)
+    self.setContentSize(NSSize(width: 1300, height: 800))
+    self.minSize = NSSize(width: 1080, height: 400)
     if let screen = self.screen {
       let screenFrame = screen.visibleFrame
-      let x = screenFrame.midX - 775
+      let x = screenFrame.midX - 650
       let y = screenFrame.midY - 400
       self.setFrameOrigin(NSPoint(x: x, y: y))
     }
