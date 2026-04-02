@@ -4,7 +4,7 @@ A macOS, Windows, and iPad application for real-time monitoring of KNX/IP bus tr
 
 ## Requirements
 
-- macOS 10.15 (Catalina) or later, Windows 10+, or iPad (iPadOS 13+)
+- macOS 10.15 (Catalina) or later, Windows 10+, or iPad (iPadOS 18+)
 - Flutter SDK 3.41+ with Dart 3.11+
 - A KNX/IP gateway or bridge on the local network
 

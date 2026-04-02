@@ -256,7 +256,9 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
               // Set up host field listener once
               if (hostListener == null) {
                 hostListener = () {
-                  if (ctx.mounted) setDialogState(() {});
+                  try {
+                    if (ctx.mounted) setDialogState(() {});
+                  } catch (_) {}
                 };
                 hostController.addListener(hostListener!);
               }
@@ -931,8 +933,9 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                     overflow: TextOverflow.ellipsis),
               ),
               const Spacer(),
-              SizedBox(
-                width: 550,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 550),
+                child: SizedBox(
                 height: 28,
               child: TextField(
                 controller: _searchController,
@@ -972,6 +975,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                   ),
                 ),
               ),
+            ),
             ),
               const Spacer(),
             ],
