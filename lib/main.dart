@@ -140,7 +140,6 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   final Set<String> _checkedSources = {};
   int? _anchorIndex;
 
-  String _status = 'Disconnected';
   knx.ConnectionState _connState = knx.ConnectionState.disconnected;
   bool _paused = false;
   int _messageNumber = 0;
@@ -170,8 +169,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
     _connection.stateChanges.listen((s) {
       if (mounted) setState(() => _connState = s);
     });
-    _connection.statusMessages.listen((msg) {
-      if (mounted) setState(() => _status = msg);
+    _connection.statusMessages.listen((_) {
+      // Status text is derived from _connState, not from messages
     });
     _connection.events.listen((event) {
       if (_paused) return;
@@ -214,24 +213,27 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
 
   /// Shows connect dialog, connects, and re-shows on failure.
   Future<void> _showConnectDialog() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastHost = prefs.getString(_prefLastHost) ?? '';
+    final lastPort = prefs.getInt(_prefLastPort) ?? knxPort;
+
+    final hostController = TextEditingController(text: lastHost);
+    final portController = TextEditingController(
+        text: lastPort == knxPort ? '' : lastPort.toString());
+
+    try {
     while (true) {
-      final prefs = await SharedPreferences.getInstance();
-      final lastHost = prefs.getString(_prefLastHost) ?? '';
-      final lastPort = prefs.getInt(_prefLastPort) ?? knxPort;
-
-      final hostController = TextEditingController(text: lastHost);
-      final portController = TextEditingController(
-          text: lastPort == knxPort ? '' : lastPort.toString());
-
-      // Start discovery in background
+      // Start discovery in background (not supported on iOS — no multicast entitlement)
       final bridges = <KnxBridge>[];
-      var discovering = true;
-      _connection.discoverBridges().then((found) {
-        bridges.addAll(found);
-        discovering = false;
-      }).catchError((_) {
-        discovering = false;
-      });
+      var discovering = !Platform.isIOS;
+      if (discovering) {
+        _connection.discoverBridges().then((found) {
+          bridges.addAll(found);
+          discovering = false;
+        }).catchError((_) {
+          discovering = false;
+        });
+      }
 
       if (!mounted) return;
       final cs = Theme.of(context).colorScheme;
@@ -243,7 +245,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
         Navigator.of(ctx).pop((host, port));
       }
 
-    VoidCallback? hostListener;
+      VoidCallback? hostListener;
 
       final result = await showDialog<(String, int)?>(
         context: context,
@@ -254,7 +256,9 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
               // Set up host field listener once
               if (hostListener == null) {
                 hostListener = () {
-                  if (ctx.mounted) setDialogState(() {});
+                  try {
+                    if (ctx.mounted) setDialogState(() {});
+                  } catch (_) {}
                 };
                 hostController.addListener(hostListener!);
               }
@@ -345,6 +349,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                           ],
                         ),
                       ),
+                      if (!Platform.isIOS) ...[
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                         child: Row(
@@ -409,6 +414,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                             ],
                           ),
                         ),
+                      ],
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
                         child: Row(
@@ -440,10 +446,12 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       if (hostListener != null) {
         hostController.removeListener(hostListener!);
       }
-      hostController.dispose();
-      portController.dispose();
 
-      if (result == null) return; // User cancelled
+      if (result == null) {
+        hostController.dispose();
+        portController.dispose();
+        return; // User cancelled
+      }
 
       final (host, port) = result;
 
@@ -471,6 +479,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
           } else {
             await prefs.setInt(_prefLastPort, port);
           }
+          hostController.dispose();
+          portController.dispose();
           return; // Success
         }
         if (state == knx.ConnectionState.error ||
@@ -480,7 +490,15 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       }
 
       // Connection failed — loop back to show dialog again
-      if (!mounted) return;
+      if (!mounted) {
+        hostController.dispose();
+        portController.dispose();
+        return;
+      }
+    }
+    } catch (_) {
+      hostController.dispose();
+      portController.dispose();
     }
   }
 
@@ -874,6 +892,19 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
 
   // --- Status icon ---
 
+  String get _statusLabel {
+    switch (_connState) {
+      case knx.ConnectionState.connected:
+        return 'Connected';
+      case knx.ConnectionState.connecting:
+        return 'Connecting\u2026';
+      case knx.ConnectionState.error:
+        return 'Connection Failure';
+      case knx.ConnectionState.disconnected:
+        return 'Disconnected';
+    }
+  }
+
   Widget _statusIcon() {
     switch (_connState) {
       case knx.ConnectionState.connected:
@@ -922,13 +953,14 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
               _statusIcon(),
               const SizedBox(width: 6),
               Flexible(
-                child: Text(_status,
+                child: Text(_statusLabel,
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w400),
                     overflow: TextOverflow.ellipsis),
               ),
               const Spacer(),
-              SizedBox(
-                width: 550,
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 550),
+                child: SizedBox(
                 height: 28,
               child: TextField(
                 controller: _searchController,
@@ -968,6 +1000,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                   ),
                 ),
               ),
+            ),
             ),
               const Spacer(),
             ],

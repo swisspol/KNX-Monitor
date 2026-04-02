@@ -8,8 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 flutter pub get          # Install dependencies
 flutter run -d macos     # Run in debug mode (macOS)
 flutter run -d windows   # Run in debug mode (Windows)
+flutter run -d ipad      # Run in debug mode (iPad)
 flutter build macos --release  # Production build → build/macos/Build/Products/Release/KNX Monitor.app
 flutter build windows --release  # Production build → build/windows/x64/runner/Release/
+flutter build ios --release      # Production build for iPad
 flutter analyze          # Static analysis (must pass with no issues)
 ```
 
@@ -17,7 +19,7 @@ Always run `flutter analyze` after code changes — it must report zero issues.
 
 ## Architecture
 
-A **macOS and Windows** Flutter desktop app that monitors KNX/IP home automation bus traffic in real time.
+A **macOS, Windows, and iPad** Flutter app that monitors KNX/IP home automation bus traffic in real time.
 
 ### Data Flow
 
@@ -64,8 +66,15 @@ KnxConnection (UDP sockets) → Stream<KnxEvent> → _KnxMonitorPageState → Li
 - Window title and size: `windows/runner/main.cpp` (initial 1300x800)
 - Minimum size: `windows/runner/win32_window.cpp` (`WM_GETMINMAXINFO` handler, min 1080x400)
 
+### iOS (iPad only)
+- App metadata: `ios/Runner/Info.plist` (display name, orientations, scene config)
+- iPad only: `TARGETED_DEVICE_FAMILY = 2` in Xcode project; no iPhone icon entries
+- App icon: `ios/Runner/Assets.xcassets/AppIcon.appiconset/` (iPad sizes + 1024px marketing)
+- Icon generation: `generate_icons.py` generates all platform icons (macOS, iOS, Windows) from `icon.png`
+
 ### CI/CD
 - `.github/workflows/build_macos.yml` — macOS build, artifact upload, GitHub Release on `v*` tags
+- `.github/workflows/build_ios.yml` — iOS (iPad) build with `--no-codesign`, artifact upload, GitHub Release on `v*` tags
 - `.github/workflows/build_windows.yml` — Windows build with bundled VC++ runtime DLLs
 - Build number: `github.run_number`; git SHA injected via `--dart-define=GIT_SHA`
 - Version defined in `pubspec.yaml`; copyright in `AppInfo.xcconfig`
