@@ -1084,6 +1084,14 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                     },
               visualDensity: VisualDensity.compact,
             ),
+            SizedBox(
+              height: 24,
+              child: VerticalDivider(
+                width: 16,
+                thickness: 1,
+                color: cs.onPrimary.withAlpha(60),
+              ),
+            ),
             IconButton(
               icon: const Icon(Icons.folder_open, size: 18),
               tooltip: 'Load ETS Project\u2026',
