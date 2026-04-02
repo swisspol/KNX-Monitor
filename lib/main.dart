@@ -892,9 +892,6 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
 
   // --- Status icon ---
 
-  bool get _showProjectColumns =>
-      !Platform.isIOS || _connection.project != null;
-
   String get _statusLabel {
     switch (_connState) {
       case knx.ConnectionState.connected:
@@ -1312,9 +1309,9 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
           _fixedCell('\u0394t', _colDelta, style, Alignment.centerRight),
           _fixedCell('Dir', _colDir, style),
           _fixedCell('Source', _colSource, style),
-          if (_showProjectColumns) Expanded(flex: 38, child: _padText('Device', style)),
+          Expanded(flex: 38, child: _padText('Device', style)),
           _fixedCell('Destination', _colDest, style),
-          if (_showProjectColumns) Expanded(flex: 62, child: _padText('Group Address', style)),
+          Expanded(flex: 62, child: _padText('Group Address', style)),
           _fixedCell('APCI', _colApci, style),
           _fixedCell('DPT', _colDpt, style),
           _fixedCell('Raw', _colRaw, style, Alignment.centerRight),
@@ -1381,12 +1378,12 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                 Alignment.centerRight),
             _bubbleCell(e.direction, _colDir, _dirColor(e.direction), ts),
             _addrCell(e.source, _colSource, ts),
-            if (_showProjectColumns) Expanded(
+            Expanded(
               flex: 38,
               child: _padData(e.deviceName, ts.copyWith(color: _cText)),
             ),
             _addrCell(e.destination, _colDest, ts),
-            if (_showProjectColumns) Expanded(
+            Expanded(
               flex: 62,
               child: _padData(e.groupName, ts.copyWith(color: _cText)),
             ),
