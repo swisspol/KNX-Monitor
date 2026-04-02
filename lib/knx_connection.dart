@@ -228,6 +228,42 @@ class KnxConnection {
         Uint8List.fromList(pkt), InternetAddress(_bridgeIp), _bridgePort);
   }
 
+  int _seqSend = 0;
+
+  /// Send a group write or read telegram.
+  /// [main], [middle], [sub] are the group address components.
+  /// [apdu] is the APDU payload (e.g. [0x00, 0x80, value] for write, [0x00, 0x00] for read).
+  void sendGroupTelegram(int main, int middle, int sub, List<int> apdu) {
+    if (_state != ConnectionState.connected || _socket == null) return;
+
+    final dstHi = ((main & 0x1F) << 3) | (middle & 0x07);
+    final dstLo = sub & 0xFF;
+    final dataLen = apdu.length - 1;
+
+    // Build cEMI frame: L_Data.req
+    final cemi = <int>[
+      0x11, // message code: L_Data.req
+      0x00, // additional info length
+      0xB0, // ctrl1: standard frame, no repeat, broadcast, priority low
+      0xE0, // ctrl2: group address destination
+      0x00, 0x00, // source (0.0.0 = let bridge fill in)
+      dstHi, dstLo,
+      dataLen,
+      ...apdu,
+    ];
+
+    final totalLen = 10 + cemi.length;
+    final pkt = <int>[];
+    pkt.addAll(knxHeader(svcTunnelRequest, totalLen));
+    pkt.addAll([0x04, _channelId, _seqSend & 0xFF, 0x00]);
+    pkt.addAll(cemi);
+
+    _socket!.send(
+        Uint8List.fromList(pkt), InternetAddress(_bridgeIp), _bridgePort);
+    _seqSend++;
+    _log.info('Sent ${apdu.length <= 2 ? "read" : "write"} to $main/$middle/$sub');
+  }
+
   void _sendTunnelAck(int seq) {
     final pkt = <int>[];
     pkt.addAll(knxHeader(svcTunnelAck, 10));
