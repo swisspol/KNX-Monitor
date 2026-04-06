@@ -1616,8 +1616,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                                     children: [
                                       Row(
                                         children: [
-                                          _addrColor(src) == _addrColor(src)
-                                              ? Container(
+                                          Container(
                                                   padding: const EdgeInsets
                                                       .symmetric(
                                                       horizontal: 5,
@@ -1638,8 +1637,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                                                         color:
                                                             _addrColor(src),
                                                       )),
-                                                )
-                                              : const SizedBox(),
+                                                ),
                                           const Spacer(),
                                           Container(
                                             padding: const EdgeInsets.symmetric(
