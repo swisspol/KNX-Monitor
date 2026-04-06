@@ -106,17 +106,6 @@ class KnxMonitorPage extends StatefulWidget {
   State<KnxMonitorPage> createState() => _KnxMonitorPageState();
 }
 
-class _PortRangeFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    if (newValue.text.isEmpty) return newValue;
-    final port = int.tryParse(newValue.text);
-    if (port == null || port > 65535) return oldValue;
-    return newValue;
-  }
-}
-
 class _RangeFormatter extends TextInputFormatter {
   final int max;
   _RangeFormatter(this.max);
@@ -354,7 +343,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                                 keyboardType: TextInputType.number,
                                 inputFormatters: [
                                   FilteringTextInputFormatter.digitsOnly,
-                                  _PortRangeFormatter(),
+                                  _RangeFormatter(65535),
                                 ],
                                 onTap: () => portController.selection = TextSelection(
                                     baseOffset: 0, extentOffset: portController.text.length),
