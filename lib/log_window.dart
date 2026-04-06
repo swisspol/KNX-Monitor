@@ -143,7 +143,9 @@ class _LogWindowState extends State<LogWindow> {
       body: CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.keyC, meta: true): _copySelection,
+          const SingleActivator(LogicalKeyboardKey.keyC, control: true): _copySelection,
           const SingleActivator(LogicalKeyboardKey.keyA, meta: true): _selectAll,
+          const SingleActivator(LogicalKeyboardKey.keyA, control: true): _selectAll,
         },
         child: Focus(
           focusNode: _focusNode,
