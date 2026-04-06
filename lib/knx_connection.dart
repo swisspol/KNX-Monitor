@@ -7,7 +7,7 @@ import 'ets_project.dart';
 
 final _log = Logger('KNX');
 
-enum ConnectionState { disconnected, connecting, connected, error }
+enum KnxKnxConnectionState { disconnected, connecting, connected, error }
 
 class KnxConnection {
   RawDatagramSocket? _socket;
@@ -24,18 +24,18 @@ class KnxConnection {
   int _hpaiPort = 0;
 
   final _eventController = StreamController<KnxEvent>.broadcast();
-  final _stateController = StreamController<ConnectionState>.broadcast();
+  final _stateController = StreamController<KnxConnectionState>.broadcast();
   final _statusController = StreamController<String>.broadcast();
 
   Stream<KnxEvent> get events => _eventController.stream;
-  Stream<ConnectionState> get stateChanges => _stateController.stream;
+  Stream<KnxConnectionState> get stateChanges => _stateController.stream;
   Stream<String> get statusMessages => _statusController.stream;
 
-  ConnectionState _state = ConnectionState.disconnected;
-  ConnectionState get state => _state;
+  KnxConnectionState _state = KnxConnectionState.disconnected;
+  KnxConnectionState get state => _state;
   int messageCount = 0;
 
-  void _setState(ConnectionState s) {
+  void _setState(KnxConnectionState s) {
     _state = s;
     _stateController.add(s);
   }
@@ -49,7 +49,7 @@ class KnxConnection {
     try {
       _bridgePort = port;
 
-      _setState(ConnectionState.connecting);
+      _setState(KnxConnectionState.connecting);
       _status('Connecting\u2026');
 
       // Resolve hostname to IP if needed
@@ -100,7 +100,7 @@ class KnxConnection {
 
       await completer.future;
 
-      _setState(ConnectionState.connected);
+      _setState(KnxConnectionState.connected);
       _status('Connected');
 
       // Store HPAI for heartbeats
@@ -112,7 +112,7 @@ class KnxConnection {
       });
     } catch (e, st) {
       _log.severe('$e', e, st);
-      _setState(ConnectionState.error);
+      _setState(KnxConnectionState.error);
       _status('Connection Failure');
     }
   }
@@ -163,7 +163,7 @@ class KnxConnection {
         pkt.addAll([_channelId, 0x00, 0x00, 0x00]);
         _socket?.send(
             Uint8List.fromList(pkt), InternetAddress(_bridgeIp), _bridgePort);
-        _setState(ConnectionState.disconnected);
+        _setState(KnxConnectionState.disconnected);
         break;
     }
   }
@@ -234,7 +234,7 @@ class KnxConnection {
   /// [main], [middle], [sub] are the group address components.
   /// [apdu] is the APDU payload (e.g. [0x00, 0x80, value] for write, [0x00, 0x00] for read).
   void sendGroupTelegram(int main, int middle, int sub, List<int> apdu) {
-    if (_state != ConnectionState.connected || _socket == null) return;
+    if (_state != KnxConnectionState.connected || _socket == null) return;
 
     final dstHi = ((main & 0x1F) << 3) | (middle & 0x07);
     final dstLo = sub & 0xFF;
@@ -399,7 +399,7 @@ class KnxConnection {
     _socketSub = null;
     _socket?.close();
     _socket = null;
-    _setState(ConnectionState.disconnected);
+    _setState(KnxConnectionState.disconnected);
     _status('Disconnected');
   }
 

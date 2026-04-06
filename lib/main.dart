@@ -12,7 +12,7 @@ import 'package:flutter/services.dart';
 import 'app_log.dart';
 import 'knx_types.dart';
 import 'ets_project.dart';
-import 'knx_connection.dart' as knx;
+import 'knx_connection.dart';
 import 'log_window.dart';
 
 void main() {
@@ -144,7 +144,7 @@ String _normalize(String s) {
 }
 
 class _KnxMonitorPageState extends State<KnxMonitorPage> {
-  final knx.KnxConnection _connection = knx.KnxConnection();
+  final KnxConnection _connection = KnxConnection();
   final List<KnxEvent> _events = [];
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
@@ -154,7 +154,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   final Set<String> _checkedSources = {};
   int? _anchorIndex;
 
-  knx.ConnectionState _connState = knx.ConnectionState.disconnected;
+  KnxConnectionState _connState = KnxConnectionState.disconnected;
   bool _paused = false;
   bool _showSourcesPanel = false;
   int _messageNumber = 0;
@@ -489,10 +489,10 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
       final connected = Completer<bool>();
       final sub = _connection.stateChanges.listen((state) {
         if (connected.isCompleted) return;
-        if (state == knx.ConnectionState.connected) {
+        if (state == KnxConnectionState.connected) {
           connected.complete(true);
-        } else if (state == knx.ConnectionState.error ||
-            state == knx.ConnectionState.disconnected) {
+        } else if (state == KnxConnectionState.error ||
+            state == KnxConnectionState.disconnected) {
           connected.complete(false);
         }
       });
@@ -919,26 +919,26 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
 
   String get _statusLabel {
     switch (_connState) {
-      case knx.ConnectionState.connected:
+      case KnxConnectionState.connected:
         return 'Connected';
-      case knx.ConnectionState.connecting:
+      case KnxConnectionState.connecting:
         return 'Connecting\u2026';
-      case knx.ConnectionState.error:
+      case KnxConnectionState.error:
         return 'Connection Failure';
-      case knx.ConnectionState.disconnected:
+      case KnxConnectionState.disconnected:
         return 'Disconnected';
     }
   }
 
   Widget _statusIcon() {
     switch (_connState) {
-      case knx.ConnectionState.connected:
+      case KnxConnectionState.connected:
         return Icon(Icons.circle, size: 10, color: Colors.green.shade400);
-      case knx.ConnectionState.connecting:
+      case KnxConnectionState.connecting:
         return Icon(Icons.circle, size: 10, color: Colors.orange.shade400);
-      case knx.ConnectionState.error:
+      case KnxConnectionState.error:
         return Icon(Icons.circle, size: 10, color: Colors.red.shade400);
-      case knx.ConnectionState.disconnected:
+      case KnxConnectionState.disconnected:
         return Icon(Icons.circle, size: 10, color: Colors.red.shade400);
     }
   }
@@ -1057,7 +1057,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
             IconButton(
               icon: Icon(_paused ? Icons.play_arrow : Icons.pause, size: 18),
               tooltip: _paused ? 'Resume' : 'Pause',
-              onPressed: _connState == knx.ConnectionState.connected
+              onPressed: _connState == KnxConnectionState.connected
                   ? () => setState(() => _paused = !_paused)
                   : null,
               visualDensity: VisualDensity.compact,
@@ -1080,17 +1080,17 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
             ),
             IconButton(
               icon: Icon(
-                  _connState == knx.ConnectionState.connected
+                  _connState == KnxConnectionState.connected
                       ? Icons.link_off
                       : Icons.link,
                   size: 18),
-              tooltip: _connState == knx.ConnectionState.connected
+              tooltip: _connState == KnxConnectionState.connected
                   ? 'Disconnect'
                   : 'Connect\u2026',
-              onPressed: _connState == knx.ConnectionState.connecting
+              onPressed: _connState == KnxConnectionState.connecting
                   ? null
                   : () {
-                      if (_connState == knx.ConnectionState.connected) {
+                      if (_connState == KnxConnectionState.connected) {
                         _connection.disconnect();
                       }
                       _showConnectDialog();
@@ -1146,7 +1146,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                               return Center(
                                 child: Text(
                                   _events.isEmpty
-                                      ? (_connState == knx.ConnectionState.connected
+                                      ? (_connState == KnxConnectionState.connected
                                           ? 'Waiting for messages\u2026'
                                           : 'No KNX/IP Bridge Connected')
                                       : 'No matching events',
@@ -1334,7 +1334,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   }
 
   bool get _canSend {
-    if (_connState != knx.ConnectionState.connected) return false;
+    if (_connState != KnxConnectionState.connected) return false;
     if (_gaMainCtrl.text.isEmpty ||
         _gaMiddleCtrl.text.isEmpty ||
         _gaSubCtrl.text.isEmpty) {
@@ -1418,7 +1418,7 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   }
 
   Widget _buildSendPanel(ColorScheme cs) {
-    final enabled = _connState == knx.ConnectionState.connected;
+    final enabled = _connState == KnxConnectionState.connected;
     final writeEnabled = enabled && _sendMode == 'Write';
     final labelStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w500,
         color: enabled ? cs.onSurfaceVariant : cs.onSurfaceVariant.withAlpha(100));
