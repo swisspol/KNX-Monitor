@@ -1,6 +1,6 @@
 # Code Review — KNX Monitor
 
-Review of the full codebase (~3100 lines across 6 Dart files).
+Review of the full codebase (~3200 lines across 9 Dart files).
 
 ---
 
@@ -125,44 +125,19 @@ If the packet claims `dibLen >= 54` but the actual data is shorter (malformed pa
 
 ## Design & Code Quality Improvements
 
-### 16. `ConnectionState` name conflicts with Flutter (`knx_connection.dart:10`)
-
-`ConnectionState` clashes with `dart:io`'s `ConnectionState` and is awkwardly imported as `knx.ConnectionState` everywhere. Rename to `KnxConnectionState` to avoid the conflict.
-
-### 17. `main.dart` is 1890 lines — too large
-
-The file contains all UI code: app shell, connect dialog, about dialog, toolbar, event table, send panel, source filter panel, row rendering, selection model, search logic, and time formatting. Extracting these into separate widgets/files would significantly improve maintainability:
-- `connect_dialog.dart`
-- `send_panel.dart`
-- `source_filter_panel.dart`
-- `event_table.dart`
-
-### 18. `_RangeFormatter` and `_PortRangeFormatter` are redundant (`main.dart:109-131`)
-
-`_PortRangeFormatter` is just `_RangeFormatter(65535)`. The former should be removed and replaced with the latter.
-
-### 19. Source panel always-true ternary (`main.dart:1630`)
-
-```dart
-_addrColor(src) == _addrColor(src)
-    ? Container(...) : const SizedBox(),
-```
-
-This condition is always `true` (comparing a value to itself). The ternary and the `SizedBox()` branch are dead code.
-
-### 20. `_sendDptTypes` dropdown includes DPTs not in the switch statement (`main.dart:1196-1213`)
+### 16. `_sendDptTypes` dropdown includes DPTs not in the switch statement (`send_panel.dart`)
 
 The dropdown lists `4.x`, `10.x`, `11.x` DPT types, but these have corresponding `case` branches in `_doSend` that are unreachable because they're not in the `_sendDptTypes` list (actually they're handled, but never tested). More importantly, the DPT dropdown is long and not searchable — consider a searchable dropdown or grouping.
 
-### 21. No unit tests
+### 17. No unit tests
 
 There are zero test files. The protocol parsing (`decodeAPCI`, `decodeValue`, `decodeKNXFloat16`, `formatGroupAddr`, `_parseCEMI`, `_encodeKnxFloat16`) and ETS project loading are highly testable and deal with binary protocols where off-by-one errors are common. Adding tests for these would catch regressions.
 
-### 22. `_normalize` diacritics table is incomplete (`main.dart:135`)
+### 18. `_normalize` diacritics table is incomplete (`main.dart`)
 
 The table handles common Western European diacritics but misses many others (e.g. Ð, ð, Þ, þ, ß, Ğ, ğ, Ş, ş, etc.). Consider using a proper Unicode normalization library like `diacritic` from pub.dev.
 
-### 23. Keyboard shortcuts use `meta` (Cmd) only — broken on Windows (`log_window.dart:145-146`, `main.dart:74-79`)
+### 19. Keyboard shortcuts use `meta` (Cmd) only — broken on Windows (`log_window.dart`, `main.dart`)
 
 ```dart
 const SingleActivator(LogicalKeyboardKey.keyC, meta: true)
@@ -170,15 +145,11 @@ const SingleActivator(LogicalKeyboardKey.keyC, meta: true)
 
 `meta: true` maps to the Cmd key on macOS but the Windows/Super key on Windows. Windows users expect Ctrl+C. The app targets Windows too, so shortcuts should adapt per platform or use both `meta` and `control`.
 
-### 24. `EtsProject.loadFromBytes` runs synchronously on the UI thread (`ets_project.dart:35`)
+### 20. `EtsProject.loadFromBytes` runs synchronously on the UI thread (`ets_project.dart`)
 
 Parsing a ZIP archive and multiple XML files is CPU-intensive. For large ETS projects this will freeze the UI. Should be run in an isolate via `compute()`.
 
-### 25. Missing `dispose` for `_gaMainCtrl`, `_gaMiddleCtrl`, `_gaSubCtrl`, `_valueCtrl` (`main.dart:1189-1191`)
-
-Four `TextEditingController` instances in the send panel are never disposed.
-
-### 26. `hashCode`-based color for addresses is not deterministic across runs (`main.dart:913`)
+### 21. `hashCode`-based color for addresses is not deterministic across runs (`main.dart`)
 
 ```dart
 final hash = src.hashCode & 0x7FFFFFFF;
@@ -190,11 +161,11 @@ final hash = src.hashCode & 0x7FFFFFFF;
 
 ## Security
 
-### 27. No validation of KNXnet/IP protocol version (`knx_types.dart:133-142`)
+### 22. No validation of KNXnet/IP protocol version (`knx_types.dart`)
 
 The `knxHeader` builder always uses protocol version `0x10` (byte 1), but incoming packets never verify bytes 0–1 are `0x06 0x10`. A malformed or spoofed packet could be processed as valid KNX data. This is low-risk on a local network but worth noting.
 
-### 28. File path from `_showAbout` is unsanitized (`main.dart:538-539`)
+### 23. File path from `_showAbout` is unsanitized (`main.dart`)
 
 ```dart
 final plistPath = '${File(Platform.resolvedExecutable).parent.parent.path}/Info.plist';
@@ -210,13 +181,12 @@ This constructs a file path from the executable location and reads it. If the ex
 |----------|-------|
 | Bugs | 10 |
 | Robustness | 5 |
-| Design/Quality | 11 |
+| Design/Quality | 6 |
 | Security | 2 |
 
 The codebase is well-structured for its size, with clean separation of protocol handling, data models, and UI. The main areas to address are:
 
 1. **Dark mode support** — hardcoded colors make the app unusable in dark mode (items 6–8)
 2. **Protocol correctness** — APDU length, DPT-3 decoding, sequence counter (items 1, 3, 4)
-3. **Testability** — no tests for critical binary protocol parsing (item 21)
-4. **`main.dart` decomposition** — single 1890-line file should be split (item 17)
-5. **Cross-platform keyboard shortcuts** — Cmd-only shortcuts break on Windows (item 23)
+3. **Testability** — no tests for critical binary protocol parsing (item 17)
+4. **Cross-platform keyboard shortcuts** — Cmd-only shortcuts break on Windows (item 19)
