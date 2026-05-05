@@ -169,8 +169,8 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
   static const double _colTime = 82;
   static const double _colDelta = 72;
   static const double _colDir = 46;
-  static const double _colSource = 60;
-  static const double _colDest = 80;
+  static const double _colSource = 84;
+  static const double _colDest = 84;
   static const double _colApci = 72;
   static const double _colDpt = 56;
   static const double _colRaw = 88;
@@ -678,39 +678,19 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
     return result;
   }
 
-  /// Returns true if all [words] appear in order within at least one searchable field.
-  /// Matching is full-word only (whitespace-separated tokens).
+  /// Returns true if every search word appears (as a substring) in at least one
+  /// searchable field of the event. Matching is case- and diacritic-insensitive.
   bool _eventMatchesAll(KnxEvent e, List<String> words) {
-    final fields = [
+    final haystack = _normalize([
       e.source,
       e.deviceName,
       e.destination,
       e.groupName,
       e.dpt,
       e.value,
-    ];
-    for (final field in fields) {
-      final fieldWords = _normalize(field).split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-      if (_matchWordsInOrder(fieldWords, words)) return true;
-    }
-    return false;
-  }
-
-  /// Check if all search [words] match full words in [fieldWords] in order.
-  /// Each search word must be equal to a field word, scanning left to right.
-  bool _matchWordsInOrder(List<String> fieldWords, List<String> searchWords) {
-    var fi = 0;
-    for (final sw in searchWords) {
-      var found = false;
-      while (fi < fieldWords.length) {
-        if (fieldWords[fi] == sw) {
-          fi++;
-          found = true;
-          break;
-        }
-        fi++;
-      }
-      if (!found) return false;
+    ].join(' '));
+    for (final w in words) {
+      if (!haystack.contains(w)) return false;
     }
     return true;
   }
@@ -1070,8 +1050,6 @@ class _KnxMonitorPageState extends State<KnxMonitorPage> {
                 _messageNumber = 0;
                 _startTime = null;
                 _selectedIndices.clear();
-                _searchController.clear();
-                _searchQuery = '';
                 _filteredIndices = null;
                 _sourceCounts.clear();
                 _checkedSources.clear();
